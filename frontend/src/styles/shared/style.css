@@ -1,0 +1,81 @@
+/* Shared Component Styles */
+
+/* TopBar */
+.topbar-header {
+  border-color: rgba(245, 245, 245, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(245, 245, 245, 0.03);
+}
+
+.topbar-back-button {
+  background: rgba(26, 26, 26, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+.topbar-wallet-container {
+  background: rgba(26, 26, 26, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  cursor: default;
+}
+
+.topbar-wallet-gradient {
+  position: absolute;
+}
+
+/* Navigation Tabs */
+.navigation-tabs-container {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.navigation-tabs-slider {
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4), 
+  0 0 0 1px rgba(102, 126, 234, 0.2), 
+  inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: left 250ms ease-out, width 250ms ease-out;
+}
+
+.navigation-tabs-slider-glow {
+  background: linear-gradient(135deg, rgba(245, 245, 245, 0.3) 0%, transparent 100%);
+  filter: blur(8px);
+}
+
+.navigation-tab-link {
+  background: transparent;
+  background-color: transparent;
+}
+
+.navigation-tab-icon-active {
+  color: white;
+}
+
+.navigation-tab-icon-inactive {
+  color: rgba(245, 245, 245, 0.6);
+}
+
+/* App Layout */
+.app-layout-container {
+  background: radial-gradient(ellipse at left, rgba(30, 30, 45, 0.5) 0%, transparent 50%), 
+  radial-gradient(ellipse at right, rgba(30, 30, 45, 0.5) 0%, transparent 50%), 
+  #0a0a0a;
+}
+
+.app-layout-main {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+.app-layout-navigation {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+/* Wallet Section */
+.wallet-section-card {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+}
+

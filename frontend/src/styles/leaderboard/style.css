@@ -1,0 +1,177 @@
+/* Leaderboard Table Styles */
+
+.leaderboard-scrollable {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.leaderboard-scrollable::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.leaderboard-scrollable::-webkit-scrollbar-track {
+  background: rgba(26, 26, 26, 0.6);
+  border-radius: 4px;
+}
+
+.leaderboard-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(245, 245, 245, 0.3);
+  border-radius: 4px;
+}
+
+.leaderboard-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 245, 245, 0.5);
+}
+
+/* Horizontal scrollbar styling */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: rgba(26, 26, 26, 0.6);
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: rgba(245, 245, 245, 0.3);
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 245, 245, 0.5);
+}
+
+@media (max-width: 640px) {
+  .leaderboard-scrollable {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Time filter container */
+.time-filter-container {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+/* Sliding gradient background */
+.time-filter-slider {
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: left 250ms cubic-bezier(0.4, 0, 0.2, 1), width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: left, width;
+}
+
+/* Filter button */
+.time-filter-button {
+  background: transparent;
+  background-color: transparent;
+}
+
+/* Search input */
+.leaderboard-search-input {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  color: #f5f5f5;
+}
+
+.leaderboard-search-input:focus {
+  border-color: rgba(245, 245, 245, 0.15);
+}
+
+.leaderboard-search-input:not(:focus) {
+  border-color: rgba(245, 245, 245, 0.08);
+}
+
+/* Table container */
+.leaderboard-table-container {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 245, 245, 0.3) transparent;
+}
+
+.leaderboard-table-wrapper {
+  max-height: calc(100vh - 350px);
+  min-height: 250px;
+  min-width: 600px;
+  width: 100%;
+}
+
+/* Table header */
+.leaderboard-table-header {
+  border-bottom: 1px solid rgba(245, 245, 245, 0.08);
+  min-width: 600px;
+}
+
+.leaderboard-rank-column {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+.leaderboard-user-column {
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+}
+
+.leaderboard-header-text {
+  color: #f5f5f5;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3), 
+  -1px -1px 2px rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.05em;
+}
+
+.leaderboard-sort-button {
+  color: #f5f5f5;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3), 
+  -1px -1px 2px rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.02em;
+  justify-content: flex-end;
+}
+
+.leaderboard-sort-button:hover {
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4), 
+  -1px -1px 3px rgba(255, 255, 255, 0.15);
+}
+
+.leaderboard-sort-icon {
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3), 
+  -1px -1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Table rows */
+.leaderboard-table-rows {
+  border-top: 1px solid rgba(245, 245, 245, 0.05);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 245, 245, 0.3) transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.leaderboard-table-row {
+  border-bottom: 1px solid rgba(245, 245, 245, 0.05);
+  background: transparent;
+  min-width: 600px;
+}
+
+.leaderboard-table-row:hover {
+  background: rgba(245, 245, 245, 0.03);
+}
+
+/* Medal icon */
+.medal-icon {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+.medal-text {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Transparent background for filter buttons */
+.time-filter-button-transparent {
+  background: transparent;
+  background-color: transparent;
+}
+

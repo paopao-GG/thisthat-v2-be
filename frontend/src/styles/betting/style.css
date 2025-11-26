@@ -1,0 +1,411 @@
+/* Swipeable Card Styles */
+
+.swipeable-card-container {
+  left: 50%;
+  visibility: visible;
+}
+
+.swipeable-card {
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  min-height: 600px;
+}
+
+.swipeable-card-hint-left {
+  background: rgba(5, 5, 5, 0.98);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.swipeable-card-hint-right {
+  background: rgba(5, 5, 5, 0.98);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.swipeable-card-hint-up {
+  background: rgba(5, 5, 5, 0.98);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.swipeable-card-hint-down {
+  background: rgba(5, 5, 5, 0.98);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* Card shadows based on index */
+.swipeable-card-shadow-0-default {
+  box-shadow: 0 20px 50px rgba(15, 15, 15, 0.7), 
+  0 10px 25px rgba(15, 15, 15, 0.6), 
+  0 5px 15px rgba(0, 0, 0, 0.5), 
+  0 0 0 1px rgba(245, 245, 245, 0.08), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-0-left {
+  box-shadow: 0 20px 50px rgba(15, 15, 15, 0.7), 
+  0 10px 25px rgba(34, 197, 94, 0.2), 
+  0 5px 15px rgba(0, 0, 0, 0.5), 
+  0 0 0 1px rgba(34, 197, 94, 0.2), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-0-right {
+  box-shadow: 0 20px 50px rgba(15, 15, 15, 0.7), 
+  0 10px 25px rgba(239, 68, 68, 0.2), 
+  0 5px 15px rgba(0, 0, 0, 0.5), 
+  0 0 0 1px rgba(239, 68, 68, 0.2), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-0-up {
+  box-shadow: 0 20px 50px rgba(15, 15, 15, 0.7), 
+  0 10px 25px rgba(59, 130, 246, 0.2), 
+  0 5px 15px rgba(0, 0, 0, 0.5), 
+  0 0 0 1px rgba(59, 130, 246, 0.2), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-0-down {
+  box-shadow: 0 20px 50px rgba(15, 15, 15, 0.7), 
+  0 10px 25px rgba(139, 92, 246, 0.2), 
+  0 5px 15px rgba(0, 0, 0, 0.5), 
+  0 0 0 1px rgba(139, 92, 246, 0.2), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-1 {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 
+  0 5px 15px rgba(0, 0, 0, 0.4), 
+  0 0 0 1px rgba(245, 245, 245, 0.05);
+}
+
+.swipeable-card-shadow-2 {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 
+  0 3px 10px rgba(0, 0, 0, 0.35), 
+  0 0 0 1px rgba(245, 245, 245, 0.04);
+}
+
+/* Swipe hints */
+.swipe-hint-left {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.swipe-hint-left-text {
+  color: #4ade80;
+}
+
+.swipe-hint-right {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.swipe-hint-right-text {
+  color: #f87171;
+}
+
+.swipe-hint-up {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.swipe-hint-down {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+/* Market question container */
+.market-question-container {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+/* Image containers */
+.image-container {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+.image-overlay {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.image-brightness {
+  filter: brightness(0.7);
+}
+
+.image-aspect-ratio {
+  aspect-ratio: 16/9;
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.06);
+}
+
+/* Option overlay */
+.option-overlay-left {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, 
+  rgba(0, 0, 0, 0.6) 50%, 
+  transparent 100%);
+  border-right: 1px solid rgba(245, 245, 245, 0.1);
+}
+
+.option-overlay-right {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%,
+   rgba(0, 0, 0, 0.6) 50%, 
+   transparent 100%);
+}
+
+/* THIS/THAT controls */
+.this-control {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.this-control-active {
+  background: rgba(34, 197, 94, 0.3);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+}
+
+.this-control-text {
+  color: #4ade80;
+}
+
+.that-control {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.that-control-active {
+  background: rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.that-control-text {
+  color: #f87171;
+}
+
+/* Amount display */
+.amount-display {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+   0 2px 6px rgba(0, 0, 0, 0.2), 
+   inset 0 1px 0 rgba(245, 245, 245, 0.03);
+}
+
+.amount-display:hover {
+  border-color: rgba(245, 245, 245, 0.12);
+}
+
+.amount-display:not(:hover) {
+  border-color: rgba(245, 245, 245, 0.08);
+}
+
+/* Modal */
+.bet-modal-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 99999;
+}
+
+.bet-modal {
+  background: rgba(10, 10, 10, 0.98);
+  border: 1px solid rgba(245, 245, 245, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 
+  0 8px 24px rgba(0, 0, 0, 0.6), 
+  inset 0 1px 0 rgba(245, 245, 245, 0.05);
+}
+
+.bet-amount-input-container {
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  background: rgba(26, 26, 26, 0.4);
+}
+
+.bet-amount-input {
+  color: #f5f5f5;
+}
+
+.bet-amount-button {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  color: #f5f5f5;
+}
+
+.bet-amount-button:hover:not(:disabled) {
+  border-color: rgba(245, 245, 245, 0.12);
+}
+
+.bet-amount-button:not(:hover) {
+  border-color: rgba(245, 245, 245, 0.08);
+}
+
+.bet-button {
+  background: #f5f5f5;
+  color: #0a0a0a;
+  border: 1px solid rgba(245, 245, 245, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 
+  0 2px 8px rgba(0, 0, 0, 0.3), 
+  inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.bet-button-disabled {
+  background: rgba(26, 26, 26, 0.6);
+  color: rgba(245, 245, 245, 0.5);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.bet-button-enabled {
+  pointer-events: auto;
+}
+
+/* Betting Page */
+.betting-page-container {
+  overflow: visible;
+}
+
+.betting-card-stack {
+  height: 750px;
+  perspective: 1200px;
+  overflow: visible;
+  padding-bottom: 10px;
+  position: relative;
+  left: 0;
+  right: 0;
+}
+
+/* Two image layout */
+.two-image-container {
+  min-height: 300px;
+}
+
+/* Bet amount input width - dynamic, but min/max in CSS */
+.bet-amount-input-dynamic {
+  min-width: 60px;
+  max-width: 250px;
+}
+
+/* Max button in modal */
+.bet-max-button {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  color: #f5f5f5;
+}
+
+.bet-max-button:hover {
+  border-color: rgba(245, 245, 245, 0.12);
+}
+
+.bet-max-button:not(:hover) {
+  border-color: rgba(245, 245, 245, 0.08);
+}
+
+.bet-button-enabled {
+  pointer-events: auto;
+}
+
+/* Betting Controls Styles */
+.betting-controls-option-container {
+  background: transparent;
+}
+
+.betting-controls-this-button {
+  background: rgba(30, 30, 30, 0.8);
+  color: #4ade80;
+}
+
+.betting-controls-that-button {
+  background: rgba(30, 30, 30, 0.8);
+  color: #f87171;
+}
+
+.betting-controls-amount-button {
+  background: rgba(30, 30, 30, 0.8);
+}
+
+.betting-controls-modal-overlay {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.betting-controls-modal {
+  background: rgba(10, 10, 10, 0.95);
+}
+
+.betting-controls-modal-this-button {
+  background: rgba(20, 83, 45, 0.6);
+}
+
+.betting-controls-modal-this-button-inactive {
+  background: rgba(20, 83, 45, 0.4);
+}
+
+.betting-controls-modal-that-button {
+  background: rgba(83, 20, 20, 0.6);
+}
+
+.betting-controls-modal-that-button-inactive {
+  background: rgba(83, 20, 20, 0.4);
+}
+
+.betting-controls-modal-this-text-active {
+  color: #ffffff;
+}
+
+.betting-controls-modal-this-text-inactive {
+  color: #4ade80;
+}
+
+.betting-controls-modal-that-text-active {
+  color: #ffffff;
+}
+
+.betting-controls-modal-that-text-inactive {
+  color: #f87171;
+}
+
+.betting-controls-amount-input-container {
+  background: rgba(30, 30, 30, 0.8);
+}
+
+.betting-controls-amount-input {
+  color: #f5f5f5;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+
+.betting-controls-increment-button {
+  background: rgba(30, 30, 30, 0.8);
+}
+
+.betting-controls-place-bet-button {
+  background: #f5f5f5;
+  color: #0a0a0a;
+}
+
+.betting-controls-place-bet-button-disabled {
+  background: rgba(30, 30, 30, 0.8);
+  color: rgba(245, 245, 245, 0.5);
+}
+
+/* Two image layout */
+.two-image-container {
+  min-height: 300px;
+}
+
+/* Bet amount input width - dynamic, but min/max in CSS */
+.bet-amount-input-dynamic {
+  min-width: 60px;
+  max-width: 250px;
+}
+
+/* Max button in modal */
+.bet-max-button {
+  background: rgba(26, 26, 26, 0.6);
+  border: 1px solid rgba(245, 245, 245, 0.08);
+  color: #f5f5f5;
+}
+
+.bet-max-button:hover {
+  border-color: rgba(245, 245, 245, 0.12);
+}
+
+.bet-max-button:not(:hover) {
+  border-color: rgba(245, 245, 245, 0.08);
+}
+
