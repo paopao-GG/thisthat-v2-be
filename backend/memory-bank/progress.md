@@ -20,9 +20,13 @@
 
 ### ✅ V1 Features (IMPLEMENT THESE)
 1. **Credits System**
-   - Starting balance: 1000 credits
-   - Daily reward: 100 credits/day
+   - Starting balance: 1000 credits (signup bonus)
+   - Daily reward: Streak-based (1,000 → 10,000 credits over 18 days)
+   - Referral bonuses: Credits for referrers
    - Bet limits: 10-10,000 credits per bet
+   - Early position selling: Users can sell before market expiry
+   - Credit purchase structure: Backend ready, payment integration pending
+   - Protocol fee: (Pending) Percentage cut on purchases
    - No real-money value, no withdrawals
 
 2. **Authentication**
@@ -54,19 +58,19 @@
    - PnL and ranking updates
 
 ### ❌ V1 Exclusions (DO NOT IMPLEMENT)
-- Wallet integration (WalletConnect, MetaMask, Phantom)
-- USDC/real-money betting
-- In-app credit purchases (Stripe)
-- Creator-driven markets
-- $THIS token economics
-- KYC/compliance
-- Social features (friends, chat, sharing)
-- Push notifications
-- Email notifications
-- Password reset functionality
-- Admin UI dashboard
-- WebSocket/real-time updates
-- Advanced job queue (BullMQ)
+- Wallet integration (WalletConnect, MetaMask, Phantom) - V2
+- USDC/real-money betting - V2
+- In-app credit purchases (Stripe) - ⚠️ Backend ready, payment integration pending
+- Creator-driven markets - V3
+- $THIS token economics - V3
+- KYC/compliance - V2
+- Social features (friends, chat, sharing) - Future
+- Push notifications - Future
+- Email notifications - Future
+- Password reset functionality - Future
+- Admin UI dashboard - Future
+- WebSocket/real-time updates - Future
+- Advanced job queue (BullMQ) - Future
 
 ---
 

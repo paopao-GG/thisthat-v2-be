@@ -4,6 +4,7 @@ import '@/styles/profile/style.css';
 
 interface Position {
   id: string;
+  marketId?: string;
   market: string;
   prediction: string;
   shares: string;
@@ -12,6 +13,7 @@ interface Position {
   value: number;
   pnl: number;
   pnlPercent: number;
+  betData?: any;
 }
 
 interface PositionsTableProps {
@@ -20,6 +22,7 @@ interface PositionsTableProps {
   searchQuery: string;
   onFilterChange: (filter: 'active' | 'closed') => void;
   onSearchChange: (query: string) => void;
+  onPositionClick?: (position: Position) => void;
 }
 
 const PositionsTable: React.FC<PositionsTableProps> = ({
@@ -27,7 +30,8 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
   positionFilter,
   searchQuery,
   onFilterChange,
-  onSearchChange
+  onSearchChange,
+  onPositionClick
 }) => {
   const filterContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
@@ -153,7 +157,10 @@ const PositionsTable: React.FC<PositionsTableProps> = ({
             {positions.map((position, index) => (
               <div 
                 key={position.id} 
-                className="flex items-start py-4 transition-all group positions-table-row"
+                onClick={() => onPositionClick && position.marketId && onPositionClick(position)}
+                className={`flex items-start py-4 transition-all group positions-table-row ${
+                  onPositionClick && position.marketId ? 'cursor-pointer hover:bg-white/5' : ''
+                }`}
               >
                 <div className="flex-1 min-w-[300px] pl-4">
                   <div className="flex items-start gap-3">

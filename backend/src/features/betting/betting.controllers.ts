@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { placeBetSchema, betQuerySchema } from './betting.models.js';
+import { placeBetSchema, betQuerySchema, sellPositionSchema } from './betting.models.js';
 import * as bettingService from './betting.services.js';
 
 /**
@@ -117,6 +117,54 @@ export async function getBetByIdHandler(request: FastifyRequest, reply: FastifyR
     return reply.status(500).send({
       success: false,
       error: 'Failed to get bet',
+    });
+  }
+}
+
+/**
+ * Sell a position early (before market expires)
+ */
+export async function sellPositionHandler(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const userId = (request.user as any)?.userId;
+    if (!userId) {
+      return reply.status(401).send({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
+    const betId = (request.params as any).betId;
+    if (!betId) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Bet ID is required',
+      });
+    }
+
+    const input = sellPositionSchema.parse(request.body || {});
+    const result = await bettingService.sellPosition(userId, betId, input);
+
+    return reply.send({
+      success: true,
+      bet: result.bet,
+      creditsReturned: result.creditsReturned,
+      newBalance: result.newBalance,
+      currentValue: result.currentValue,
+    });
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation error',
+        details: error.errors,
+      });
+    }
+
+    request.log.error({ error, stack: error.stack }, 'Sell position error');
+    return reply.status(400).send({
+      success: false,
+      error: error.message || 'Failed to sell position',
     });
   }
 }

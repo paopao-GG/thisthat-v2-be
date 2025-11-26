@@ -17,9 +17,9 @@ export interface MarketStaticData {
   description: string | null;
   thisOption: string;
   thatOption: string;
-  author: string | null;
+  author?: string | null; // Not in schema, kept for compatibility
   category: string | null;
-  imageUrl: string | null;
+  imageUrl?: string | null; // Not in schema, kept for compatibility
   status: string;
   expiresAt: Date | null;
   thisOdds?: number;
@@ -72,15 +72,19 @@ export async function getRandomMarkets(count: number = 10): Promise<MarketStatic
       description: true,
       thisOption: true,
       thatOption: true,
-      author: true,
       category: true,
-      imageUrl: true,
       status: true,
       expiresAt: true,
+      marketType: true,
     },
   });
 
-  return markets;
+  // Add null values for fields not in schema but expected by interface
+  return markets.map(market => ({
+    ...market,
+    author: null,
+    imageUrl: null,
+  }));
 }
 
 /**
@@ -117,9 +121,7 @@ export async function getMarkets(options?: {
       thisOdds: true,
       thatOdds: true,
       liquidity: true,
-      author: true,
       category: true,
-      imageUrl: true,
       status: true,
       expiresAt: true,
       marketType: true,
@@ -133,9 +135,9 @@ export async function getMarkets(options?: {
     description: m.description,
     thisOption: m.thisOption,
     thatOption: m.thatOption,
-    author: m.author,
+    author: null, // Not in schema
     category: m.category,
-    imageUrl: m.imageUrl,
+    imageUrl: null, // Not in schema
     status: m.status,
     expiresAt: m.expiresAt,
     // Include odds and liquidity from database (may be stale, will be updated with live data)
@@ -169,15 +171,23 @@ export async function getMarketById(marketId: string): Promise<MarketStaticData 
       description: true,
       thisOption: true,
       thatOption: true,
-      author: true,
       category: true,
-      imageUrl: true,
       status: true,
       expiresAt: true,
+      marketType: true,
     },
   });
 
-  return market;
+  if (!market) {
+    return null;
+  }
+
+  // Add null values for fields not in schema but expected by interface
+  return {
+    ...market,
+    author: null,
+    imageUrl: null,
+  };
 }
 
 /**
@@ -193,15 +203,23 @@ export async function getMarketByPolymarketId(polymarketId: string): Promise<Mar
       description: true,
       thisOption: true,
       thatOption: true,
-      author: true,
       category: true,
-      imageUrl: true,
       status: true,
       expiresAt: true,
+      marketType: true,
     },
   });
 
-  return market;
+  if (!market) {
+    return null;
+  }
+
+  // Add null values for fields not in schema but expected by interface
+  return {
+    ...market,
+    author: null,
+    imageUrl: null,
+  };
 }
 
 /**
@@ -292,21 +310,35 @@ export async function fetchBatchLivePriceData(
  * Get market with live data combined
  */
 export async function getMarketWithLiveData(marketId: string): Promise<MarketWithLiveData | null> {
-  const staticData = await getMarketById(marketId);
+  try {
+    const staticData = await getMarketById(marketId);
 
-  if (!staticData) {
-    return null;
+    if (!staticData) {
+      console.log(`[Markets Service] Market not found: ${marketId}`);
+      return null;
+    }
+
+    let liveData: MarketLiveData | null = null;
+    if (staticData.polymarketId) {
+      try {
+        liveData = await fetchLivePriceData(staticData.polymarketId);
+      } catch (error: any) {
+        console.error(`[Markets Service] Error fetching live data for market ${marketId}:`, error.message);
+        // Continue without live data - return static data only
+        liveData = null;
+      }
+    } else {
+      console.log(`[Markets Service] Market ${marketId} has no polymarketId, skipping live data fetch`);
+    }
+
+    return {
+      ...staticData,
+      live: liveData,
+    };
+  } catch (error: any) {
+    console.error(`[Markets Service] Error in getMarketWithLiveData for ${marketId}:`, error.message);
+    throw error; // Re-throw to be handled by controller
   }
-
-  let liveData: MarketLiveData | null = null;
-  if (staticData.polymarketId) {
-    liveData = await fetchLivePriceData(staticData.polymarketId);
-  }
-
-  return {
-    ...staticData,
-    live: liveData,
-  };
 }
 
 /**

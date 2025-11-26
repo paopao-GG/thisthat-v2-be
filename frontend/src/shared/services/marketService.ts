@@ -3,187 +3,141 @@
  */
 
 import { apiGet } from './api';
-import type { Market } from '@shared/types';
+import type { Market } from '../types';
 
-export interface BackendMarket {
-  // PostgreSQL format fields
-  id?: string;
-  polymarketId?: string;
-  title?: string;
-  description?: string;
-  thisOption?: string;
-  thatOption?: string;
-  thisOdds?: number;
-  thatOdds?: number;
-  expiryDate?: string;
-  expiresAt?: string;
-  category?: string;
-  liquidity?: number;
-  status?: string;
-  marketType?: 'binary' | 'two-image';
-  
-  // MongoDB format fields (FlattenedMarket)
-  conditionId?: string;
-  question?: string;
-  endDate?: string;
-  author?: string;
-  source?: string;
+export interface MarketStaticData {
+  id: string;
+  polymarketId: string | null;
+  title: string;
+  description: string | null;
+  thisOption: string;
+  thatOption: string;
+  author?: string | null; // Not in schema, optional
+  category: string | null;
+  imageUrl?: string | null; // Not in schema, optional
+  status: string;
+  expiresAt: string | null;
 }
 
-/**
- * Convert backend market format to frontend Market format
- * Handles both PostgreSQL and MongoDB formats
- */
-function convertBackendMarket(backendMarket: BackendMarket): Market {
-  // MongoDB format uses 'question' instead of 'title', 'conditionId' instead of 'id'
-  const isMongoDBFormat = !backendMarket.title && backendMarket.question;
-  
-  const id = isMongoDBFormat 
-    ? (backendMarket.conditionId || backendMarket.id || '')
-    : (backendMarket.id || backendMarket.conditionId || backendMarket.polymarketId || '');
-  
-  const title = isMongoDBFormat 
-    ? (backendMarket.question || '')
-    : (backendMarket.title || '');
-  
-  const description = backendMarket.description || '';
-  
-  const thisOption = backendMarket.thisOption || 'YES';
-  const thatOption = backendMarket.thatOption || 'NO';
-  
-  // MongoDB markets don't have prices (lazy loading pattern) - use default odds
-  // TODO: Fetch live prices from Polymarket API using conditionId for accurate odds
-  // PostgreSQL markets may have prices from database
-  const thisOdds = typeof backendMarket.thisOdds === 'number' && backendMarket.thisOdds > 0
-    ? backendMarket.thisOdds
-    : 1.5; // Default to 1.5x multiplier (0.67 probability) if no odds available
-  
-  const thatOdds = typeof backendMarket.thatOdds === 'number' && backendMarket.thatOdds > 0
-    ? backendMarket.thatOdds
-    : 1.5; // Default to 1.5x multiplier (0.67 probability) if no odds available
-  
-  // Handle expiry date - MongoDB uses 'endDate', PostgreSQL uses 'expiresAt' or 'expiryDate'
-  const expiryDateStr = isMongoDBFormat
-    ? backendMarket.endDate
-    : (backendMarket.expiresAt || backendMarket.expiryDate);
-  
-  const expiryDate = expiryDateStr
-    ? new Date(expiryDateStr)
-    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days from now
-  
-  const category = backendMarket.category || 'Other';
-  const liquidity = backendMarket.liquidity || 0;
-  const marketType = backendMarket.marketType || 'binary';
-  
-  return {
-    id,
-    title,
-    description,
-    thisOption,
-    thatOption,
-    thisOdds,
-    thatOdds,
-    expiryDate,
-    category,
-    liquidity,
-    marketType,
-  };
+export interface MarketLiveData {
+  polymarketId: string;
+  thisOdds: number;
+  thatOdds: number;
+  liquidity: number;
+  volume: number;
+  volume24hr: number;
+  acceptingOrders: boolean;
 }
 
-/**
- * Get markets from backend
- */
-export async function getMarkets(options?: {
-  status?: 'active' | 'closed' | 'archived' | 'open';
+export interface MarketWithLiveData extends MarketStaticData {
+  live: MarketLiveData | null;
+}
+
+export interface GetMarketsOptions {
+  status?: 'open' | 'closed' | 'resolved';
   category?: string;
   limit?: number;
   skip?: number;
-}): Promise<Market[]> {
+}
+
+/**
+ * Get markets with optional filtering
+ * Returns Market[] format compatible with BettingPage
+ */
+export async function getMarkets(options?: GetMarketsOptions): Promise<Market[]> {
   try {
-    // MongoDB uses 'active' status, PostgreSQL uses 'open'
-    // Try MongoDB first since user wants MongoDB data
-    const mongoParams = new URLSearchParams();
-    const mongoStatus = options?.status === 'open' ? 'active' : (options?.status || 'active');
-    mongoParams.append('status', mongoStatus);
-    if (options?.category) mongoParams.append('category', options.category);
-    if (options?.limit) mongoParams.append('limit', options.limit.toString());
-    if (options?.skip) mongoParams.append('skip', options.skip.toString());
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.category) params.append('category', options.category);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.skip) params.append('skip', options.skip.toString());
     
-    const mongoQueryString = mongoParams.toString();
-    const mongoEndpoint = `/api/v1/markets/legacy${mongoQueryString ? `?${mongoQueryString}` : ''}`;
+    const queryString = params.toString();
+    const endpoint = `/api/v1/markets${queryString ? `?${queryString}` : ''}`;
     
-    console.log(`Fetching markets from MongoDB: ${mongoEndpoint}`);
-    let response = await apiGet<{ success: boolean; data: BackendMarket[]; count?: number }>(mongoEndpoint);
+    const response = await apiGet<{ success: boolean; data: any[]; count?: number }>(endpoint);
     
-    console.log('MongoDB endpoint response:', { 
-      success: response.success, 
-      count: response.data?.length || 0,
-      data: response.data ? response.data.slice(0, 2) : null // Log first 2 for debugging
-    });
-    
-    // If MongoDB has data, use it
-    if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
-      const markets = response.data.map(convertBackendMarket);
-      console.log(`✅ Converted ${markets.length} markets from MongoDB`);
-      return markets;
+    if (response.success && response.data) {
+      // Transform MarketStaticData to Market format
+      return response.data.map((market: any): Market => ({
+        id: market.id,
+        title: market.title || '',
+        description: market.description || '',
+        thisOption: market.thisOption || 'YES',
+        thatOption: market.thatOption || 'NO',
+        thisOdds: market.thisOdds || 0.5,
+        thatOdds: market.thatOdds || 0.5,
+        expiryDate: market.expiresAt ? new Date(market.expiresAt) : new Date(),
+        category: market.category || 'Other',
+        liquidity: market.liquidity || 0,
+        imageUrl: market.imageUrl || undefined,
+        marketType: 'binary' as const,
+      }));
     }
     
-    // Fallback to PostgreSQL endpoint if MongoDB is empty
-    if (!response.success || !response.data || response.data.length === 0) {
-      console.log('MongoDB returned empty, trying PostgreSQL endpoint...');
-      const pgParams = new URLSearchParams();
-      const pgStatus = options?.status === 'active' ? 'open' : (options?.status || 'open');
-      pgParams.append('status', pgStatus);
-      if (options?.category) pgParams.append('category', options.category);
-      if (options?.limit) pgParams.append('limit', options.limit.toString());
-      if (options?.skip) pgParams.append('skip', options.skip.toString());
-      
-      const pgQueryString = pgParams.toString();
-      const pgEndpoint = `/api/v1/markets${pgQueryString ? `?${pgQueryString}` : ''}`;
-      
-      response = await apiGet<{ success: boolean; data: BackendMarket[]; count?: number }>(pgEndpoint);
-      console.log('PostgreSQL endpoint response:', { success: response.success, count: response.data?.length || 0 });
-      
-      if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
-        const markets = response.data.map(convertBackendMarket);
-        console.log(`✅ Converted ${markets.length} markets from PostgreSQL`);
-        return markets;
-      }
-    }
-    
-    // Fallback: check if response has markets array directly
-    if (Array.isArray(response)) {
-      return response.map(convertBackendMarket);
-    }
-    
-    console.warn('No markets found in response:', response);
     return [];
   } catch (error: any) {
     console.error('getMarkets error:', error);
-    // Return empty array on error to prevent UI breakage
     return [];
   }
 }
 
 /**
- * Fetch markets from Polymarket and save to backend
+ * Get market by ID (static data only)
  */
-export async function fetchMarketsFromPolymarket(options?: {
-  active?: boolean;
-  limit?: number;
-}): Promise<void> {
+export async function getMarketById(marketId: string): Promise<MarketStaticData | null> {
   try {
-    const params = new URLSearchParams();
-    if (options?.active !== undefined) params.append('active', options.active.toString());
-    if (options?.limit) params.append('limit', options.limit.toString());
+    const response = await apiGet<{ success: boolean; data: MarketStaticData }>(
+      `/api/v1/markets/${marketId}`
+    );
     
-    const queryString = params.toString();
-    const endpoint = `/api/v1/markets/legacy/fetch${queryString ? `?${queryString}` : ''}`;
+    if (response.success && response.data) {
+      return response.data;
+    }
     
-    await apiGet(endpoint);
+    return null;
   } catch (error: any) {
-    console.error('fetchMarketsFromPolymarket error:', error);
-    throw error;
+    console.error('getMarketById error:', error);
+    return null;
   }
 }
 
+/**
+ * Get live price data for a market
+ */
+export async function getMarketLivePrices(marketId: string): Promise<MarketLiveData | null> {
+  try {
+    const response = await apiGet<{ success: boolean; data: MarketLiveData; marketId: string }>(
+      `/api/v1/markets/${marketId}/live`
+    );
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error('getMarketLivePrices error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get market with both static data and live prices
+ */
+export async function getMarketFull(marketId: string): Promise<MarketWithLiveData | null> {
+  try {
+    const response = await apiGet<{ success: boolean; data: MarketWithLiveData }>(
+      `/api/v1/markets/${marketId}/full`
+    );
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error('getMarketFull error:', error);
+    return null;
+  }
+}

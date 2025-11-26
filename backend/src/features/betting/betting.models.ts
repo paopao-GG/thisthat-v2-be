@@ -23,3 +23,12 @@ export const betQuerySchema = z.object({
 
 export type BetQueryInput = z.infer<typeof betQuerySchema>;
 
+/**
+ * Schema for selling a position early
+ */
+export const sellPositionSchema = z.object({
+  amount: z.number().positive().optional(), // Optional: sell partial amount, if not provided sells entire position
+});
+
+export type SellPositionInput = z.infer<typeof sellPositionSchema>;
+

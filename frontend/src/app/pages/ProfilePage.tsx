@@ -8,17 +8,20 @@ import ProfileSummaryCard from '@features/profile/components/ProfileSummaryCard'
 import WalletSection from '@features/profile/wallet/components/WalletSection';
 import PositionsTable from '@features/profile/components/PositionsTable';
 import ReferralModal from '@features/profile/components/ReferralModal';
+import MarketTradingModal from '@features/profile/components/MarketTradingModal';
 
 interface Position {
   id: string;
+  marketId?: string;
   market: string;
-  prediction: string;
+  prediction: 'THIS' | 'THAT' | string;
   shares: string;
   avgPrice: string;
   currentPrice: string;
   value: number;
   pnl: number;
   pnlPercent: number;
+  betData?: any;
 }
 
 const ProfilePage: React.FC = () => {
@@ -34,6 +37,8 @@ const ProfilePage: React.FC = () => {
   const [positions, setPositions] = useState<Position[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
   const [loadingBets, setLoadingBets] = useState(true);
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
+  const [isTradingModalOpen, setIsTradingModalOpen] = useState(false);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
 
@@ -177,6 +182,7 @@ const ProfilePage: React.FC = () => {
       
       return {
         id: bet.id,
+        marketId: bet.marketId || bet.market?.id,
         market: bet.market?.title || 'Unknown Market',
         prediction: side,
         shares: `${amount.toLocaleString()} credits`,
@@ -185,6 +191,7 @@ const ProfilePage: React.FC = () => {
         value,
         pnl,
         pnlPercent,
+        betData: bet, // Store full bet data for the modal
       };
     });
   };
@@ -330,6 +337,28 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handlePositionClick = (position: Position) => {
+    if (position.marketId) {
+      setSelectedPosition(position);
+      setIsTradingModalOpen(true);
+    }
+  };
+
+  const handleTradeSuccess = () => {
+    // Refresh bets after successful trade
+    if (user) {
+      getUserBets({ limit: 100 }).then((response) => {
+        const bets = response.bets || [];
+        if (bets && Array.isArray(bets) && bets.length > 0) {
+          setAllBets(bets);
+          setActivity(bets);
+        }
+      }).catch((error) => {
+        console.error('Failed to refresh bets:', error);
+      });
+    }
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -448,6 +477,7 @@ const ProfilePage: React.FC = () => {
               searchQuery={searchQuery}
               onFilterChange={setPositionFilter}
               onSearchChange={setSearchQuery}
+              onPositionClick={handlePositionClick}
             />
           )}
         </>
@@ -534,6 +564,17 @@ const ProfilePage: React.FC = () => {
           onShareLink={handleShareLink}
         />
       )}
+
+      {/* Market Trading Modal */}
+      <MarketTradingModal
+        isOpen={isTradingModalOpen}
+        position={selectedPosition}
+        onClose={() => {
+          setIsTradingModalOpen(false);
+          setSelectedPosition(null);
+        }}
+        onTradeSuccess={handleTradeSuccess}
+      />
     </div>
   );
 };

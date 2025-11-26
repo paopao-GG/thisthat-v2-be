@@ -44,8 +44,10 @@ Become the default consumer-facing interface for onchain prediction markets by m
 
 5. **Engagement Loop**
    - User checks leaderboard rankings (PnL and Volume)
-   - Claims daily login reward (100 credits)
+   - Claims daily login reward (streak-based: 1,000-10,000 credits)
    - Continues betting to climb rankings
+   - Can sell positions early before market expiry
+   - Can purchase additional credits (when payment integration complete)
 
 ### User Experience Goals
 
@@ -93,12 +95,25 @@ Become the default consumer-facing interface for onchain prediction markets by m
 
 ## Core Mechanics
 
-### Credits System
-- **Starting balance:** 1,000 credits
-- **Daily reward:** 100 credits (once per 24h)
-- **Purchase:** (Future) $1 USD = 100 credits
+### Credits System (V1)
+- **Starting balance:** 1,000 credits (signup bonus)
+- **Daily reward:** Streak-based system
+  - Day 1: 1,000 credits
+  - Day 2: 1,500 credits (+500)
+  - Day 3: 2,000 credits (+500)
+  - ...increases by 500 each day
+  - Day 18+: 10,000 credits (max)
+  - Resets at 00:00 UTC daily
+  - Streak breaks if user misses a day (resets to Day 1)
+- **Referral bonus:** Credits awarded to referrer when someone signs up
+- **In-app purchases:** Credit packages available (Stripe integration pending)
+  - Starter: 500 credits ($4.99)
+  - Boost: 1,000 credits ($9.99)
+  - Pro: 2,500 credits ($19.99)
+  - Whale: 5,000 credits ($34.99)
+- **Protocol fee:** (Pending) Percentage cut on credit purchases
 - **Constraints:** Cannot withdraw, no real-money value
-- **Purpose:** Gather user behavior data, validate engagement
+- **Purpose:** Gather user behavior data, validate engagement, prepare for V2/V3
 
 ### Betting Mechanics
 - **Minimum bet:** 10 credits

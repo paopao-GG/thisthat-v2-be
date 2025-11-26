@@ -135,3 +135,39 @@ export async function getUserBets(options?: {
   }
 }
 
+export interface SellPositionRequest {
+  amount?: number; // Optional: partial sell amount
+}
+
+export interface SellPositionResponse {
+  success: boolean;
+  bet: UserBet;
+  creditsReturned: number;
+  newBalance: number;
+  currentValue: number;
+}
+
+/**
+ * Sell a position early (before market expires)
+ */
+export async function sellPosition(
+  betId: string,
+  request?: SellPositionRequest
+): Promise<SellPositionResponse> {
+  try {
+    const response = await apiPost<SellPositionResponse>(
+      `/api/v1/bets/${betId}/sell`,
+      request || {}
+    );
+    
+    if (response.success) {
+      return response;
+    }
+    
+    throw new Error(response.error || 'Failed to sell position');
+  } catch (error: any) {
+    console.error('sellPosition error:', error);
+    throw error;
+  }
+}
+

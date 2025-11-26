@@ -354,3 +354,159 @@ export async function getBetById(betId: string, userId: string): Promise<any | n
   return bet;
 }
 
+/**
+ * Sell a position early (before market expires)
+ * Calculates current value based on live odds and returns credits to user
+ */
+export async function sellPosition(
+  userId: string,
+  betId: string,
+  input?: { amount?: number }
+): Promise<{
+  bet: any;
+  creditsReturned: number;
+  newBalance: number;
+  currentValue: number;
+}> {
+  return await prisma.$transaction(async (tx) => {
+    // Get bet
+    const bet = await tx.bet.findUnique({
+      where: { id: betId },
+      include: {
+        user: true,
+        market: true,
+      },
+    });
+
+    if (!bet) {
+      throw new Error('Bet not found');
+    }
+
+    // Verify ownership
+    if (bet.userId !== userId) {
+      throw new Error('Unauthorized: This bet does not belong to you');
+    }
+
+    // Check if bet is sellable (must be pending and market must be open)
+    if (bet.status !== 'pending') {
+      throw new Error(`Cannot sell: Bet status is ${bet.status}`);
+    }
+
+    if (bet.market.status !== 'open') {
+      throw new Error('Cannot sell: Market is not open');
+    }
+
+    // Check if market has expired
+    if (bet.market.expiresAt && new Date() > bet.market.expiresAt) {
+      throw new Error('Cannot sell: Market has expired');
+    }
+
+    // Get current live odds from Polymarket
+    let currentOdds: number;
+    if (bet.market.polymarketId) {
+      try {
+        const { fetchLivePriceData } = await import('../markets/markets.services.js');
+        const liveData = await fetchLivePriceData(bet.market.polymarketId);
+        
+        if (!liveData) {
+          throw new Error('Failed to fetch current market prices');
+        }
+
+        // Get current odds for the side user bet on
+        currentOdds = bet.side === 'this' ? liveData.thisOdds : liveData.thatOdds;
+      } catch (error: any) {
+        console.error(`[Sell Position] Error fetching live odds: ${error.message}`);
+        // Fallback: use market's stored odds (may be stale)
+        currentOdds = bet.side === 'this' 
+          ? Number(bet.market.thisOdds) 
+          : Number(bet.market.thatOdds);
+      }
+    } else {
+      // No Polymarket ID, use stored odds
+      currentOdds = bet.side === 'this' 
+        ? Number(bet.market.thisOdds) 
+        : Number(bet.market.thatOdds);
+    }
+
+    // Calculate current value of position
+    // Formula: currentValue = betAmount * (currentOdds / oddsAtBet)
+    // This represents what the position is worth now based on current market price
+    const betAmount = Number(bet.amount);
+    const oddsAtBet = Number(bet.oddsAtBet);
+    const sellAmount = input?.amount ? Math.min(input.amount, betAmount) : betAmount;
+    
+    // Calculate current value for the amount being sold
+    const currentValue = sellAmount * (currentOdds / oddsAtBet);
+
+    // Calculate credits to return (current value)
+    const creditsReturned = Math.max(0, currentValue); // Ensure non-negative
+
+    const balanceBefore = Number(bet.user.creditBalance);
+    const balanceAfter = balanceBefore + creditsReturned;
+
+    // Update bet status
+    if (sellAmount >= betAmount) {
+      // Selling entire position - mark as sold/cancelled
+      await tx.bet.update({
+        where: { id: bet.id },
+        data: {
+          status: 'cancelled', // Using cancelled status for early sells
+          actualPayout: creditsReturned,
+          resolvedAt: new Date(),
+        },
+      });
+    } else {
+      // Partial sell - this would require splitting the bet, which is complex
+      // For now, we'll only support full position sells
+      throw new Error('Partial position selling is not yet supported. Please sell your entire position.');
+    }
+
+    // Update user credits
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        creditBalance: balanceAfter,
+        availableCredits: balanceAfter,
+        // Update PnL: creditsReturned - betAmount (could be negative if odds moved against user)
+        overallPnL: {
+          increment: creditsReturned - sellAmount,
+        },
+      },
+    });
+
+    // Create credit transaction
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount: creditsReturned,
+        transactionType: 'position_sold',
+        referenceId: bet.id,
+        balanceAfter,
+      },
+    });
+
+    // Get updated bet
+    const updatedBet = await tx.bet.findUnique({
+      where: { id: bet.id },
+      include: {
+        market: {
+          select: {
+            id: true,
+            title: true,
+            thisOption: true,
+            thatOption: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    return {
+      bet: updatedBet,
+      creditsReturned,
+      newBalance: balanceAfter,
+      currentValue: creditsReturned,
+    };
+  });
+}
+
