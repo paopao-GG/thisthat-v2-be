@@ -47,27 +47,39 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 
 **Frontend Code - Working:**
 - `frontend/src/app/pages/BettingPage.tsx` - Main betting interface ✅
-  - Fetches event-market groups from backend API
-  - Manages navigation state (event index, market index)
-  - Handles 4-way navigation (up/down for markets, left/right for events)
+  - Fetches markets from backend API (MongoDB/PostgreSQL)
+  - Filters out swiped markets using SwipedMarketsContext
   - **Connected to real betting API** ✅
   - Shows real user credits from auth context
   - Refreshes credits after placing bets
-- `frontend/src/app/pages/LoginPage.tsx` - Login form ✅
+  - Displays loading, error, and empty states
+  - Fallback to mock data if backend fails
+- `frontend/src/app/pages/PreLogin.tsx` - OAuth login page ✅
+- `frontend/src/app/pages/AuthCallback.tsx` - OAuth callback handler ✅
 - `frontend/src/app/pages/StockMarketPage.tsx` - Stock market trading UI ✅
 - `frontend/src/app/pages/ProfilePage.tsx` - Profile page ✅
+  - **Fetches real user data from `/api/v1/auth/me`** ✅
+  - **Displays user credits, username, stats, referral code** ✅
+  - **Logout button with session termination** ✅
   - **Daily reward button connected** ✅
-  - **Bets history showing last 10 bets** ✅
-  - Auto-refreshes every 5 seconds
+  - **Positions/Previous Activity tabs showing real bet data** ✅
+  - **Fetches real user bets from `/api/v1/bets/me`** ✅
+  - **Calculates PnL, value, and percentages for each position** ✅
+  - **Filters bets into active (pending) and closed (won/lost/cancelled)** ✅
+  - Loading and error states
 - `frontend/src/features/betting/components/MarketCard.tsx` - Market display ✅
 - `frontend/src/features/betting/components/BettingControls.tsx` - Betting interface ✅
-- `frontend/src/shared/services/api.ts` - HTTP client ✅
+- `frontend/src/shared/services/api.ts` - HTTP client with auth & token refresh ✅
 - `frontend/src/shared/services/authService.ts` - Auth API client ✅
-- `frontend/src/shared/services/betService.ts` - Betting API client ✅ (NEW)
-- `frontend/src/shared/services/economyService.ts` - Economy API client ✅ (NEW)
+- `frontend/src/shared/services/betService.ts` - Betting API client (placeBet, getUserBets) ✅
+- `frontend/src/shared/services/economyService.ts` - Economy API client ✅
 - `frontend/src/shared/services/eventMarketGroupService.ts` - Event-market group API ✅
-- `frontend/src/shared/services/marketService.ts` - Market API ✅
+- `frontend/src/shared/services/marketService.ts` - Market API (getMarkets with MongoDB/PostgreSQL support) ✅
 - `frontend/src/shared/contexts/AuthContext.tsx` - Auth state management ✅
+- `frontend/src/shared/contexts/SwipedMarketsContext.tsx` - Swiped markets tracking (localStorage persistence) ✅
+- `frontend/src/shared/components/RequireAuth.tsx` - Route protection component ✅
+- `frontend/src/shared/components/layout/TopBar.tsx` - Shows real user credits ✅
+- `frontend/src/features/betting/components/SwipeableCard.tsx` - Swipeable market card with bet placement ✅
 
 **Code - Implemented:**
 - `src/features/auth/` - **AUTHENTICATION IMPLEMENTED** ✅
@@ -199,7 +211,76 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 
 ## Recent Changes
 
-### 2025-01-XX (Latest - Referrals & Purchases Complete)
+### 2025-01-XX (Latest - Daily Reward System Frontend Integration)
+- ✅ **Daily Credits Frontend Integration Complete**
+  - Created `frontend/src/shared/services/economyService.ts` with `claimDailyCredits()` function
+  - Fixed 400 Bad Request error by sending empty body `{}` for POST requests
+  - Updated `DailyCreditsSection.tsx` to use real API calls instead of mock data
+  - Proper error handling, loading states, and success feedback
+  - Handles "already claimed today" case (creditsAwarded: 0) gracefully
+- ✅ **UTC Reset Logic Fixed**
+  - Frontend UTC midnight calculation in `creditSystem.ts` matches backend exactly
+  - Proper day difference calculation for streak tracking
+  - Countdown timer shows correct time until next claim (00:00 UTC)
+- ✅ **User Data Integration**
+  - `HomePage.tsx` now uses real user data (`consecutiveDaysOnline`, `lastDailyRewardAt`)
+  - `ProfilePage.tsx` passes real `lastClaimDate` to components
+  - `User` type in `authService.ts` updated to include `lastDailyRewardAt` field
+  - Auto-refresh user data after claiming credits to update balance and streak
+- ✅ **Streak Display Improvements**
+  - Shows current streak dynamically (1-18+)
+  - Displays next streak amount (e.g., "Next streak: 1,500 points")
+  - Max streak indicator (18+ days = 10,000 credits/day)
+  - Proper handling of streak reset when user misses a day
+
+### 2025-01-XX (Betting/Swiping Integration & Profile Enhancements)
+- ✅ **Betting/Swiping Integration Complete**
+  - SwipeableCard opens bet modal on swipe left/right
+  - Integrated placeBet API call within modal
+  - Real-time credit balance updates after bet placement
+  - Markets marked as swiped only after successful bet (not on initial swipe)
+- ✅ **SwipedMarketsContext Implemented**
+  - Global context to track swiped market IDs
+  - Persists in localStorage across navigation
+  - Prevents swiped markets from reappearing
+  - Integrated into App.tsx as global provider
+- ✅ **Market Fetching Improvements**
+  - Handles both MongoDB (legacy) and PostgreSQL endpoints
+  - Proper status conversion (MongoDB: 'active', PostgreSQL: 'open')
+  - Fallback logic with improved error handling
+  - Enhanced convertBackendMarket function for both data structures
+- ✅ **Profile Page Real Bet Data**
+  - Fetches real user bets from `/api/v1/bets/me`
+  - Converts backend bet data to Position format
+  - Calculates PnL, value, and percentages
+  - Filters into active (pending) and closed (won/lost/cancelled) positions
+  - Shows real betting history in "Previous Activity" tab
+- ✅ **BettingPage Enhancements**
+  - Filters out swiped markets using SwipedMarketsContext
+  - Passes maxCredits from AuthContext to SwipeableCard
+  - Implements handleBetPlaced callback to refresh credits
+  - Displays loading, error, and empty states
+
+### 2025-11-26 (Frontend Authentication Integration)
+- ✅ **Frontend Authentication System Implemented**
+  - AuthContext for global auth state management
+  - API service with automatic token refresh
+  - Route protection with RequireAuth component
+  - All `/app/*` routes require authentication
+- ✅ **Profile Page Connected to Backend**
+  - Fetches real user data from `/api/v1/auth/me`
+  - Displays user credits, username, stats, referral code
+  - Logout button with proper session termination
+  - Loading and error states
+- ✅ **TopBar Shows Real Credits**
+  - Displays user credits from AuthContext
+  - Updates automatically when user data changes
+- ✅ **API Response Parsing Fixed**
+  - Handles backend format `{ success: true, user: {...} }`
+  - Token refresh on 401 errors
+  - Improved error handling
+
+### 2025-01-XX (Referrals & Purchases Complete)
 - ✅ **Referral System Implemented**
   - Optional referral codes on signup
   - Awards +200 credits to referrers

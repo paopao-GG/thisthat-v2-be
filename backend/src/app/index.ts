@@ -20,6 +20,7 @@ import transactionRoutes from '../features/transactions/transactions.routes.js';
 import redis from '../lib/redis.js';
 import referralRoutes from '../features/referrals/referral.routes.js';
 import purchaseRoutes from '../features/purchases/purchases.routes.js';
+import marketsRoutes from '../features/markets/markets.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -68,6 +69,9 @@ fastify.get('/api/hello', async (request, reply) => {
 await fastify.register(marketDataRoutes, { prefix: '/api/v1/markets/legacy' });
 await fastify.register(eventDataRoutes, { prefix: '/api/v1/events' });
 await fastify.register(eventMarketGroupRoutes, { prefix: '/api/v1/event-market-groups' });
+
+// Register Markets routes (PostgreSQL-based with live prices)
+await fastify.register(marketsRoutes, { prefix: '/api/v1/markets' });
 
 // Register Auth routes
 await fastify.register(authRoutes, { prefix: '/api/v1/auth' });

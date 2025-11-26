@@ -33,36 +33,43 @@ export function calculateDailyClaimAmount(streak: number): number {
 
 /**
  * Get the next UTC midnight (00:00 UTC)
+ * PRD: Credit claim happens every 00:00 UTC
  */
 export function getNextClaimTime(): Date {
   const now = new Date();
-  const utcNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
   
-  // Set to next UTC midnight
-  const nextMidnight = new Date(utcNow);
-  nextMidnight.setUTCHours(24, 0, 0, 0);
+  // Get current UTC date components
+  const utcYear = now.getUTCFullYear();
+  const utcMonth = now.getUTCMonth();
+  const utcDate = now.getUTCDate();
   
-  // Convert back to local time
-  return new Date(nextMidnight.getTime() - (now.getTimezoneOffset() * 60000));
+  // Create next UTC midnight (00:00 UTC of the next day)
+  const nextUtcMidnight = new Date(Date.UTC(utcYear, utcMonth, utcDate + 1, 0, 0, 0, 0));
+  
+  return nextUtcMidnight;
+}
+
+/**
+ * Get UTC midnight timestamp for a date
+ * PRD: Credit claim happens every 00:00 UTC
+ */
+function getUtcMidnight(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 /**
  * Check if a claim is available (it's past 00:00 UTC and user hasn't claimed today)
+ * PRD: Credit claim happens every 00:00 UTC
  */
 export function isClaimAvailable(lastClaimDate: Date | null): boolean {
   if (!lastClaimDate) return true;
   
   const now = new Date();
-  const lastClaim = new Date(lastClaimDate);
+  const nowMidnight = getUtcMidnight(now);
+  const lastClaimMidnight = getUtcMidnight(lastClaimDate);
   
-  // Convert both to UTC for comparison
-  const nowUTC = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
-  const lastClaimUTC = new Date(lastClaim.getTime() + (lastClaim.getTimezoneOffset() * 60000));
-  
-  // Check if it's a new UTC day
-  return nowUTC.getUTCDate() !== lastClaimUTC.getUTCDate() ||
-         nowUTC.getUTCMonth() !== lastClaimUTC.getUTCMonth() ||
-         nowUTC.getUTCFullYear() !== lastClaimUTC.getUTCFullYear();
+  // Claim is available if we're in a different UTC day
+  return nowMidnight > lastClaimMidnight;
 }
 
 /**
@@ -88,39 +95,35 @@ export function getCreditClaimInfo(
 
 /**
  * Calculate new streak after a successful claim
- * If claim is made on a new day, increment streak
- * If claim is made on the same day, return current streak
+ * PRD: Each successful claim per day increases the daily log-in streak
+ * If claim is made on a new UTC day, increment streak
+ * If streak is broken (missed a day), reset to 1
  */
 export function calculateNewStreak(
   currentStreak: number,
   lastClaimDate: Date | null
 ): number {
-  if (isClaimAvailable(lastClaimDate)) {
-    // Check if last claim was yesterday (consecutive day)
-    if (lastClaimDate) {
-      const now = new Date();
-      const lastClaim = new Date(lastClaimDate);
-      
-      const nowUTC = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
-      const lastClaimUTC = new Date(lastClaim.getTime() + (lastClaim.getTimezoneOffset() * 60000));
-      
-      // Calculate days difference
-      const timeDiff = nowUTC.getTime() - lastClaimUTC.getTime();
-      const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff === 1) {
-        // Consecutive day - increment streak
-        return currentStreak + 1;
-      } else if (daysDiff > 1) {
-        // Streak broken - reset to 1
-        return 1;
-      }
-    }
-    // First claim ever
+  if (!lastClaimDate) {
+    // First claim ever - start at streak 1
     return 1;
   }
   
-  // Same day claim - no streak change
+  const now = new Date();
+  const nowMidnight = getUtcMidnight(now);
+  const lastClaimMidnight = getUtcMidnight(lastClaimDate);
+  
+  // Calculate days difference in UTC
+  const daysDiff = Math.floor((nowMidnight - lastClaimMidnight) / (24 * 60 * 60 * 1000));
+  
+  if (daysDiff === 1) {
+    // Consecutive day - increment streak (capped at 18+ for max credits)
+    return Math.min(currentStreak + 1, 18);
+  } else if (daysDiff > 1) {
+    // Streak broken - reset to 1
+    return 1;
+  }
+  
+  // Same UTC day - no streak change (shouldn't happen if backend logic is correct)
   return currentStreak;
 }
 

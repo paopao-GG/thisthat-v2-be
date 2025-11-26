@@ -38,7 +38,11 @@
 
 ### Implementation Status: ✅ **COMPLETE**
 - Daily credits system ✅ (matches PRD formula exactly; capped at 10k with UTC resets)
-- Streak tracking ✅
+  - Backend: `POST /api/v1/economy/daily-credits` fully functional
+  - Frontend: `DailyCreditsSection.tsx` integrated with real API calls
+  - UTC reset logic matches PRD (00:00 UTC, not rolling window)
+  - Proper error handling and loading states
+- Streak tracking ✅ (frontend displays current streak, next streak amount)
 - Starting balance (1000 credits) ✅
 - Bet limits (10-10,000) ✅
 - Payout calculation ✅

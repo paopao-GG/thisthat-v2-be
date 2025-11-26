@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import SwipeableCard from '@features/betting/components/SwipeableCard';
 import CategoryFilter from '@shared/components/CategoryFilter';
 import { useCategoryFilter } from '@shared/contexts/CategoryFilterContext';
+import { useAuth } from '@shared/contexts/AuthContext';
+import { useSwipedMarkets } from '@shared/contexts/SwipedMarketsContext';
 import type { Market } from '@shared/types';
+import { getMarkets } from '@shared/services/marketService';
 import { getImageUrlForMarket, getImageUrlForOption } from '@shared/utils/imageFetcher';
 import '@/styles/betting/style.css';
 
@@ -130,30 +133,25 @@ const mockMarketsBase: Omit<Market, 'imageUrl' | 'thisImageUrl' | 'thatImageUrl'
 // Internal component that manages card state - keyed by category to reset on change
 const CardStack: React.FC<{
   markets: Market[];
-}> = ({ markets: filteredMarkets }) => {
+  maxCredits?: number;
+  defaultBetAmount: number;
+  onBetPlaced?: () => void;
+}> = ({ markets: filteredMarkets, maxCredits, defaultBetAmount, onBetPlaced }) => {
   const [currentMarketIndex, setCurrentMarketIndex] = useState(0);
   const [swipedCards, setSwipedCards] = useState<Set<number>>(new Set());
 
-  const handleSwipeLeft = (index: number) => {
-    // Swipe left = THIS option
+  const handleSwipeLeft = async (index: number) => {
+    // Swipe left = THIS option - bet is placed automatically in SwipeableCard
+    // Just advance to next card after bet is placed
     console.log(`Selected THIS for market ${filteredMarkets[index].id}`);
     setSwipedCards((prev) => new Set([...prev, index]));
-    
-    // Auto-advance to next card after a short delay
-    setTimeout(() => {
-      setCurrentMarketIndex((prev) => (prev + 1) % filteredMarkets.length);
-    }, 300);
   };
 
-  const handleSwipeRight = (index: number) => {
-    // Swipe right = THAT option
+  const handleSwipeRight = async (index: number) => {
+    // Swipe right = THAT option - bet is placed automatically in SwipeableCard
+    // Just advance to next card after bet is placed
     console.log(`Selected THAT for market ${filteredMarkets[index].id}`);
     setSwipedCards((prev) => new Set([...prev, index]));
-    
-    // Auto-advance to next card after a short delay
-    setTimeout(() => {
-      setCurrentMarketIndex((prev) => (prev + 1) % filteredMarkets.length);
-    }, 300);
   };
 
   const handleSwipeUp = () => {
@@ -194,6 +192,9 @@ const CardStack: React.FC<{
           onSwipeUp={handleSwipeUp}
           onSwipeDown={handleSwipeDown}
           isActive={index === 0}
+          maxCredits={maxCredits}
+          defaultBetAmount={defaultBetAmount}
+          onBetPlaced={onBetPlaced}
         />
       ))}
     </div>
@@ -202,10 +203,33 @@ const CardStack: React.FC<{
 
 const BettingPage: React.FC = () => {
   const { selectedCategory: categoryFilter, setSelectedCategory: setCategoryFilter, categories } = useCategoryFilter();
+  const { user, refreshUser } = useAuth();
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Load default bet amount from localStorage, default to 100 if not set
+  const [defaultBetAmount, setDefaultBetAmount] = useState(() => {
+    try {
+      const stored = localStorage.getItem('defaultBetAmount');
+      return stored ? parseInt(stored, 10) : 100;
+    } catch {
+      return 100;
+    }
+  });
 
-  // Fetch images for markets - using useMemo to avoid effect warnings
-  const mockMarkets = useMemo<Market[]>(() => {
-    return mockMarketsBase.map((market) => {
+  // Save default bet amount to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('defaultBetAmount', defaultBetAmount.toString());
+    } catch (error) {
+      console.error('Failed to save default bet amount:', error);
+    }
+  }, [defaultBetAmount]);
+
+  // Helper function to add images to markets
+  const addImagesToMarkets = (marketsToProcess: Market[]): Market[] => {
+    return marketsToProcess.map((market) => {
       if (market.marketType === 'two-image') {
         return {
           ...market,
@@ -219,30 +243,211 @@ const BettingPage: React.FC = () => {
         };
       }
     });
+  };
+
+  // Fetch markets from backend
+  useEffect(() => {
+    const fetchMarkets = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('Fetching markets from backend...');
+        
+        const fetchedMarkets = await getMarkets({
+          status: 'open', // Use 'open' for PostgreSQL, which maps to 'active' for MongoDB
+          limit: 100,
+        });
+        
+        console.log(`Fetched ${fetchedMarkets.length} markets from backend`);
+        
+        // Add images to markets
+        const marketsWithImages = addImagesToMarkets(fetchedMarkets);
+        
+        // If no markets fetched, fall back to mock data
+        if (marketsWithImages.length === 0) {
+          console.warn('No markets fetched from backend, using mock data');
+          const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
+          setMarkets(mockMarketsWithImages);
+        } else {
+          console.log(`Setting ${marketsWithImages.length} markets`);
+          setMarkets(marketsWithImages);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch markets:', err);
+        setError(err.message || 'Failed to load markets');
+        // Always fall back to mock data on error so user can still see markets
+        console.log('Falling back to mock data due to error');
+        const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
+        setMarkets(mockMarketsWithImages);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMarkets();
   }, []);
   
-  // Filter markets by category
+  const { isMarketSwiped } = useSwipedMarkets();
+
+  // Filter markets by category and exclude swiped markets
   const filteredMarkets = useMemo(() => {
-    if (mockMarkets.length === 0) return [];
-    if (categoryFilter === 'All') {
-      return mockMarkets;
+    if (markets.length === 0) return [];
+    
+    // First filter by category
+    let categoryFiltered = markets;
+    if (categoryFilter !== 'All') {
+      categoryFiltered = markets.filter(market => market.category === categoryFilter);
     }
-    return mockMarkets.filter(market => market.category === categoryFilter);
-  }, [categoryFilter, mockMarkets]);
+    
+    // Then filter out swiped markets
+    return categoryFiltered.filter(market => !isMarketSwiped(market.id));
+  }, [categoryFilter, markets, isMarketSwiped]);
+
+  // Handle bet placed - refresh user credits
+  const handleBetPlaced = async () => {
+    if (refreshUser) {
+      await refreshUser();
+    }
+  };
+
+  // Get max credits from user
+  const maxCredits = user?.availableCredits 
+    ? Number(user.availableCredits) 
+    : user?.creditBalance 
+      ? Number(user.creditBalance) 
+      : 10000;
+
+  // Ensure default bet amount doesn't exceed max credits
+  const safeDefaultBetAmount = Math.min(defaultBetAmount, maxCredits);
+
+  // Show loading state only if we have no markets at all
+  if (loading && markets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-full p-3 pt-4">
+        <div className="text-white/60">Loading markets...</div>
+      </div>
+    );
+  }
+
+  // Show error message but still display markets if we have them
+  if (error && markets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-full p-3 pt-4">
+        <div className="text-red-400 mb-4">Error: {error}</div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Show message if no markets available after filtering
+  if (filteredMarkets.length === 0 && markets.length > 0) {
+    return (
+      <div className="flex flex-col items-center justify-start min-h-full p-3 pt-4 relative betting-page-container">
+        {/* Category Filter */}
+        <div className="w-full max-w-lg mx-auto mb-8">
+          <CategoryFilter
+            categories={categories}
+            selectedCategory={categoryFilter}
+            onCategoryChange={setCategoryFilter}
+          />
+        </div>
+        <div className="flex flex-col items-center justify-center flex-1">
+          <div className="text-white/60">No markets found in this category.</div>
+          <div className="text-white/40 text-sm mt-2">Try selecting a different category.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-start min-h-full p-3 pt-4 relative betting-page-container">
+      {/* Error banner if there was an error but we're showing fallback data */}
+      {error && markets.length > 0 && (
+        <div className="w-full max-w-lg mx-auto mb-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-200 text-sm">
+          ⚠️ Using fallback data. {error}
+        </div>
+      )}
+      
       {/* Category Filter */}
-      <div className="w-full max-w-lg mx-auto mb-8">
+      <div className="w-full max-w-lg mx-auto mb-4">
         <CategoryFilter
           categories={categories}
           selectedCategory={categoryFilter}
           onCategoryChange={setCategoryFilter}
         />
       </div>
+
+      {/* Default Bet Amount Control */}
+      <div className="w-full max-w-lg mx-auto mb-6 px-4">
+        <div className="flex items-center justify-between gap-4 p-3 bg-white/5 rounded-lg border border-white/10">
+          <div className="flex-1">
+            <label className="text-xs text-white/50 mb-1 block">Default Bet Amount</label>
+            <div className="flex items-center gap-2">
+              <span className="text-white/70">$</span>
+              <input
+                type="number"
+                min="1"
+                max={maxCredits}
+                value={defaultBetAmount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 0;
+                  if (value >= 1 && value <= maxCredits) {
+                    setDefaultBetAmount(value);
+                  }
+                }}
+                className="flex-1 bg-transparent border-none outline-none text-white text-lg font-semibold focus:outline-none"
+                style={{ width: '100px' }}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setDefaultBetAmount(Math.max(1, defaultBetAmount - 10))}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition-all"
+            >
+              -$10
+            </button>
+            <button
+              onClick={() => setDefaultBetAmount(Math.min(maxCredits, defaultBetAmount + 10))}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition-all"
+            >
+              +$10
+            </button>
+            <button
+              onClick={() => setDefaultBetAmount(Math.min(maxCredits, Math.floor(maxCredits / 2)))}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition-all"
+            >
+              Half
+            </button>
+            <button
+              onClick={() => setDefaultBetAmount(maxCredits)}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition-all"
+            >
+              Max
+            </button>
+          </div>
+        </div>
+      </div>
       
       {/* Card stack - keyed by category to reset state when category changes */}
-      <CardStack key={categoryFilter} markets={filteredMarkets} />
+      {filteredMarkets.length > 0 ? (
+        <CardStack 
+          key={categoryFilter} 
+          markets={filteredMarkets}
+          maxCredits={maxCredits}
+          defaultBetAmount={safeDefaultBetAmount}
+          onBetPlaced={handleBetPlaced}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center flex-1">
+          <div className="text-white/60">No markets available.</div>
+        </div>
+      )}
     </div>
   );
 };

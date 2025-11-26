@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import type { Market } from '@shared/types';
+import { placeBet } from '@shared/services/betService';
+import { useSwipedMarkets } from '@shared/contexts/SwipedMarketsContext';
 import '@/styles/betting/style.css';
 
 interface SwipeableCardProps {
@@ -12,6 +13,9 @@ interface SwipeableCardProps {
   onSwipeUp: () => void;
   onSwipeDown: () => void;
   isActive: boolean;
+  maxCredits?: number;
+  defaultBetAmount: number;
+  onBetPlaced?: () => void;
 }
 
 const SwipeableCard: React.FC<SwipeableCardProps> = ({
@@ -23,25 +27,75 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
   onSwipeUp,
   onSwipeDown,
   isActive,
+  maxCredits = 10000,
+  defaultBetAmount,
+  onBetPlaced,
 }) => {
+  const { markMarketAsSwiped } = useSwipedMarkets();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [betAmount, setBetAmount] = useState(100);
-  const [selectedOption, setSelectedOption] = useState<'THIS' | 'THAT' | null>(null);
   const [wasDragging, setWasDragging] = useState(false);
+  const [isPlacingBet, setIsPlacingBet] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  
-  const maxCredits = 10000; // Mock max credits
   
 
   const SWIPE_THRESHOLD = 50;
   const ROTATION_FACTOR = 0.1;
 
+  // Function to automatically place bet
+  const handlePlaceBet = async (side: 'THIS' | 'THAT') => {
+    if (isPlacingBet || !isActive) return;
+    
+    const betAmount = Math.min(defaultBetAmount, maxCredits);
+    if (betAmount <= 0) {
+      console.warn('Bet amount is 0 or invalid');
+      return;
+    }
+
+    setIsPlacingBet(true);
+    
+    try {
+      // Place bet via API
+      await placeBet({
+        marketId: market.id,
+        side: side.toLowerCase() as 'this' | 'that',
+        amount: betAmount,
+      });
+      
+      // Mark market as swiped
+      markMarketAsSwiped(market.id);
+      
+      // Refresh user credits if callback provided
+      if (onBetPlaced) {
+        onBetPlaced();
+      }
+      
+      // Animate card off screen
+      if (side === 'THIS') {
+        setPosition({ x: -1000, y: position.y });
+        setTimeout(() => {
+          onSwipeLeft();
+        }, 300);
+      } else {
+        setPosition({ x: 1000, y: position.y });
+        setTimeout(() => {
+          onSwipeRight();
+        }, 300);
+      }
+    } catch (error: any) {
+      console.error('Failed to place bet:', error);
+      // Reset position on error
+      setPosition({ x: 0, y: 0 });
+      setRotation(0);
+    } finally {
+      setIsPlacingBet(false);
+    }
+  };
+
   const handleStart = (clientX: number, clientY: number) => {
-    if (!isActive) return;
+    if (!isActive || isPlacingBet) return;
     setIsDragging(true);
     setStartPos({ x: clientX, y: clientY });
   };
@@ -90,25 +144,15 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
       return;
     }
 
-    // Swipe left (THIS option)
+    // Swipe left (THIS option) - Place bet automatically
     if (position.x < -SWIPE_THRESHOLD) {
-      // Animate card off screen to the left
-      setPosition({ x: -1000, y: position.y });
-      setRotation(-30);
-      setTimeout(() => {
-        onSwipeLeft();
-      }, 200);
+      handlePlaceBet('THIS');
       return;
     }
 
-    // Swipe right (THAT option)
+    // Swipe right (THAT option) - Place bet automatically
     if (position.x > SWIPE_THRESHOLD) {
-      // Animate card off screen to the right
-      setPosition({ x: 1000, y: position.y });
-      setRotation(30);
-      setTimeout(() => {
-        onSwipeRight();
-      }, 200);
+      handlePlaceBet('THAT');
       return;
     }
 
@@ -347,19 +391,6 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
             </div>
           )}
 
-          {/* Swipe up/down indicator */}
-          {/* {isActive && (
-            <div className="flex items-center justify-center gap-2 mb-4 text-xs text-white/40">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-              <span>Swipe up or down to change markets</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          )} */}
-
           {/* THIS/THAT Swipe Controls */}
           <div className="flex gap-3 mb-4">
             {/* THIS control - Green */}
@@ -390,135 +421,21 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
           </div>
 
           {/* Amount display */}
-          <div 
-            className="p-4 cursor-pointer transition-all amount-display"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isActive && !wasDragging) {
-                setIsModalOpen(true);
-              }
-              setWasDragging(false);
-            }}
-          >
+          <div className="p-4 transition-all amount-display">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[#f5f5f5]/50">Amount:</span>
-              <span className="text-xl font-semibold text-[#f5f5f5] leading-snug">${betAmount.toLocaleString()}</span>
+              <span className="text-sm text-[#f5f5f5]/50">Default Amount:</span>
+              <span className="text-xl font-semibold text-[#f5f5f5] leading-snug">${defaultBetAmount.toLocaleString()}</span>
             </div>
+            {isPlacingBet && (
+              <div className="mt-2 text-xs text-[#f5f5f5]/50 text-center">
+                Placing bet...
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Amount Modal - Rendered via Portal to ensure it's on top */}
-      {isModalOpen && isActive && createPortal(
-        (
-          <div 
-            className="fixed inset-0 flex items-center justify-center p-4 bet-modal-overlay"
-            onClick={() => setIsModalOpen(false)}
-          >
-            <div 
-              className="w-full max-w-md md:max-w-lg p-5 md:p-6 backdrop-blur-sm bet-modal"
-              onClick={(e) => e.stopPropagation()}
-            >
-            {/* Amount Section */}
-            <div className="mb-5">
-              <div className="relative mb-3 p-4 bg-transparent min-h-[70px] flex items-center justify-end bet-amount-input-container">
-                <span className="absolute top-3 left-4 text-sm text-[#f5f5f5]/50">Amount</span>
-                <div className="flex items-center justify-end">
-                  <span className="text-2xl font-semibold text-[#f5f5f5]">$</span>
-                  <input
-                    type="text"
-                    value={betAmount.toLocaleString()}
-                    onChange={(e) => {
-                      // Remove commas and non-numeric characters
-                      const numericValue = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '');
-                      const value = parseInt(numericValue) || 0;
-                      if (value >= 0 && value <= maxCredits) {
-                        setBetAmount(value);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Ensure value is formatted on blur
-                      const numericValue = e.target.value.replace(/,/g, '').replace(/[^0-9]/g, '');
-                      const value = parseInt(numericValue) || 0;
-                      if (value > maxCredits) {
-                        setBetAmount(maxCredits);
-                      } else if (value < 0) {
-                        setBetAmount(0);
-                      }
-                    }}
-                    className="text-2xl font-semibold bg-transparent border-none outline-none text-left focus:outline-none bet-amount-input bet-amount-input-dynamic"
-                    style={{ 
-                      width: `${betAmount.toLocaleString().length * 12}px`
-                    }}
-                  />
-                </div>
-              </div>
-              
-              <div className="text-xs text-[#f5f5f5]/30 mb-3 text-right">
-                Max: {maxCredits.toLocaleString()}
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  className="flex-1 py-2.5 px-3 text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none bet-amount-button"
-                  onClick={() => setBetAmount(Math.min(betAmount + 1, maxCredits))}
-                  disabled={betAmount >= maxCredits}
-                >
-                  +$1
-                </button>
-                <button
-                  className="flex-1 py-2.5 px-3 text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none bet-amount-button"
-                  onClick={() => setBetAmount(Math.min(betAmount + 250, maxCredits))}
-                  disabled={betAmount >= maxCredits}
-                >
-                  +$250
-                </button>
-                <button
-                  className="flex-1 py-2.5 px-3 text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none bet-amount-button"
-                  onClick={() => setBetAmount(Math.min(betAmount + 100, maxCredits))}
-                  disabled={betAmount >= maxCredits}
-                >
-                  +$100
-                </button>
-                <button
-                  className="flex-1 py-2.5 px-3 text-sm font-medium transition-all focus:outline-none bet-max-button"
-                  onClick={() => setBetAmount(maxCredits)}
-                >
-                  Max
-                </button>
-              </div>
-            </div>
-
-
-            {/* Bet Button */}
-            <button
-              className={`w-full py-4 md:py-4.5 px-4 md:px-6 font-semibold uppercase tracking-wider transition-all text-sm md:text-base focus:outline-none disabled:cursor-not-allowed ${
-                betAmount === 0 || betAmount > maxCredits
-                  ? 'bet-button-disabled'
-                  : 'bet-button bet-button-enabled cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (betAmount > 0 && betAmount <= maxCredits) {
-                  // Handle bet placement here
-                  const option = selectedOption || 'THIS'; // Default to THIS if not selected
-                  console.log(`Placing bet: ${option} for $${betAmount}`);
-                  setIsModalOpen(false);
-                  setSelectedOption(null);
-                }
-              }}
-              disabled={betAmount === 0 || betAmount > maxCredits}
-            >
-              Bet
-            </button>
-          </div>
-        </div>
-        ),
-        document.body
-      )}
     </div>
   );
 };
 
 export default SwipeableCard;
-

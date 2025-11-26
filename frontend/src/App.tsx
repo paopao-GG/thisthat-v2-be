@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@shared/contexts/AuthContext';
+import { SwipedMarketsProvider } from '@shared/contexts/SwipedMarketsContext';
 import { RequireAuth } from '@shared/components/RequireAuth';
 import AppLayout from '@shared/components/layout/AppLayout';
 import PreLogin from '@app/pages/PreLogin';
@@ -13,7 +14,8 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <SwipedMarketsProvider>
+          <Routes>
           <Route path="/" element={<PreLogin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route
@@ -30,6 +32,7 @@ function App() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Routes>
+        </SwipedMarketsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

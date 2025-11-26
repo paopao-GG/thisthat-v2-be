@@ -3,15 +3,19 @@ import { Link } from 'react-router-dom';
 import { Play, Trophy, User } from 'lucide-react';
 import AppTitle from '@shared/components/AppTitle';
 import DailyCreditsSection from '@features/profile/wallet/components/DailyCreditsSection';
-
-// Mock user data - simulating claim available
-const mockDailyStreak = 7;
-const mockLastClaimDate = new Date(Date.now() - 86400000 * 2); // 2 days ago (claim available)
+import { useAuth } from '@shared/contexts/AuthContext';
 
 const HomePage: React.FC = () => {
-  const handleClaim = () => {
-    // Handle claim logic
-    // In a real app, this would update the backend and user stats
+  const { user, refreshUser } = useAuth();
+  
+  const dailyStreak = user?.consecutiveDaysOnline || 0;
+  const lastClaimDate = user?.lastDailyRewardAt ? new Date(user.lastDailyRewardAt) : null;
+
+  const handleClaim = async () => {
+    // Refresh user data after claiming to update credits and streak
+    if (refreshUser) {
+      await refreshUser();
+    }
   };
 
   return (
@@ -88,13 +92,15 @@ const HomePage: React.FC = () => {
       </div>
 
       {/* Claim Credits Section at bottom */}
-      <div className="relative z-10 w-full px-6 pb-12 pt-8">
-        <DailyCreditsSection 
-          dailyStreak={mockDailyStreak}
-          lastClaimDate={mockLastClaimDate}
-          onClaim={handleClaim}
-        />
-      </div>
+      {user && (
+        <div className="relative z-10 w-full px-6 pb-12 pt-8">
+          <DailyCreditsSection 
+            dailyStreak={dailyStreak}
+            lastClaimDate={lastClaimDate}
+            onClaim={handleClaim}
+          />
+        </div>
+      )}
     </div>
   );
 };

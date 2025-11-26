@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@shared/contexts/AuthContext';
 import type { UserStats } from '@shared/types';
+import { getUserBets } from '@shared/services/betService';
 import ProfileSummaryCard from '@features/profile/components/ProfileSummaryCard';
 import WalletSection from '@features/profile/wallet/components/WalletSection';
 import PositionsTable from '@features/profile/components/PositionsTable';
 import ReferralModal from '@features/profile/components/ReferralModal';
 
-const mockPositions: Array<{
+interface Position {
   id: string;
   market: string;
   prediction: string;
@@ -18,19 +19,7 @@ const mockPositions: Array<{
   value: number;
   pnl: number;
   pnlPercent: number;
-}> = [
-  {
-    id: '1',
-    market: "Will 'The Running Man' Opening Weekend Box Office be between 17m and 19m?",
-    prediction: 'Yes',
-    shares: '6,343,700.5 shares at 50¢',
-    avgPrice: '50¢',
-    currentPrice: '0.1¢',
-    value: 3474.85,
-    pnl: -3471379.33,
-    pnlPercent: -99.9,
-  },
-];
+}
 
 const ProfilePage: React.FC = () => {
   const { user, loading, logout: logoutUser } = useAuth();
@@ -41,6 +30,10 @@ const ProfilePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [allBets, setAllBets] = useState<any[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [activity, setActivity] = useState<any[]>([]);
+  const [loadingBets, setLoadingBets] = useState(true);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
 
@@ -57,7 +50,7 @@ const ProfilePage: React.FC = () => {
     dailyStreak: user.consecutiveDaysOnline || 0,
     tokenAllocation: 0, // V1 doesn't have tokens
     lockedTokens: 0, // V1 doesn't have tokens
-    lastClaimDate: null, // TODO: Fetch from daily rewards
+    lastClaimDate: user.lastDailyRewardAt ? new Date(user.lastDailyRewardAt) : null,
   } : null;
 
   const referralCode = user?.referralCode || '';
@@ -74,6 +67,118 @@ const ProfilePage: React.FC = () => {
       setIsLoggingOut(false);
     }
   };
+
+  // Convert bets to positions format
+  const convertBetsToPositions = (bets: any[]): Position[] => {
+    return bets.map((bet: any) => {
+      const side = bet.side === 'this' ? 'THIS' : 'THAT';
+      const amount = Number(bet.amount);
+      const odds = Number(bet.oddsAtBet) || 0.5;
+      const potentialPayout = Number(bet.potentialPayout) || (amount / odds);
+      const actualPayout = bet.actualPayout ? Number(bet.actualPayout) : null;
+      
+      // Calculate PnL
+      let pnl = 0;
+      let pnlPercent = 0;
+      let value = amount;
+      
+      if (bet.status === 'won' && actualPayout) {
+        pnl = actualPayout - amount;
+        pnlPercent = (pnl / amount) * 100;
+        value = actualPayout;
+      } else if (bet.status === 'lost') {
+        pnl = -amount;
+        pnlPercent = -100;
+        value = 0;
+      } else if (bet.status === 'pending') {
+        // For pending bets, show potential value
+        value = potentialPayout;
+        pnl = potentialPayout - amount;
+        pnlPercent = (pnl / amount) * 100;
+      } else if (bet.status === 'cancelled') {
+        pnl = 0;
+        pnlPercent = 0;
+        value = amount; // Refunded
+      }
+      
+      return {
+        id: bet.id,
+        market: bet.market?.title || 'Unknown Market',
+        prediction: side,
+        shares: `${amount.toLocaleString()} credits`,
+        avgPrice: `${odds.toFixed(2)}x`,
+        currentPrice: bet.status === 'pending' ? `${odds.toFixed(2)}x` : (actualPayout ? `${(actualPayout / amount).toFixed(2)}x` : 'N/A'),
+        value,
+        pnl,
+        pnlPercent,
+      };
+    });
+  };
+
+  // Filter positions based on positionFilter
+  useEffect(() => {
+    if (allBets.length === 0) {
+      setPositions([]);
+      return;
+    }
+
+    const positionsData = convertBetsToPositions(allBets);
+    
+    // Separate active (pending) and closed (won/lost/cancelled) positions
+    const activePositions = positionsData.filter(p => {
+      const bet = allBets.find((b: any) => b.id === p.id);
+      return bet?.status === 'pending';
+    });
+    
+    const closedPositions = positionsData.filter(p => {
+      const bet = allBets.find((b: any) => b.id === p.id);
+      return bet?.status !== 'pending';
+    });
+    
+    // Update positions based on filter
+    if (positionFilter === 'active') {
+      setPositions(activePositions);
+    } else {
+      setPositions(closedPositions);
+    }
+  }, [allBets, positionFilter]);
+
+  // Fetch user bets (only when user changes)
+  useEffect(() => {
+    const fetchBets = async () => {
+      if (!user) {
+        setAllBets([]);
+        setActivity([]);
+        return;
+      }
+      
+      try {
+        setLoadingBets(true);
+        const response = await getUserBets({ limit: 100 });
+        
+        console.log('Bets response:', response);
+        
+        // Backend returns { success: true, bets: [...], total, limit, offset }
+        const bets = response.bets || [];
+        
+        if (bets && Array.isArray(bets) && bets.length > 0) {
+          setAllBets(bets);
+          setActivity(bets);
+        } else {
+          setAllBets([]);
+          setActivity([]);
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch bets:', error);
+        setAllBets([]);
+        setActivity([]);
+      } finally {
+        setLoadingBets(false);
+      }
+    };
+
+    fetchBets();
+  }, [user]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -202,7 +307,7 @@ const ProfilePage: React.FC = () => {
       {/* Summary Card */}
       <ProfileSummaryCard
         userStats={userStats}
-        positions={mockPositions}
+        positions={positions}
         biggestWin={biggestWin}
         timeFilter={timeFilter}
         onTimeFilterChange={setTimeFilter}
@@ -255,20 +360,90 @@ const ProfilePage: React.FC = () => {
 
       {/* Positions Table */}
       {activeTab === 'positions' && (
-        <PositionsTable
-          positions={mockPositions}
-          positionFilter={positionFilter}
-          searchQuery={searchQuery}
-          onFilterChange={setPositionFilter}
-          onSearchChange={setSearchQuery}
-        />
+        <>
+          {loadingBets ? (
+            <div className="text-center py-12 text-[#f5f5f5]/50 text-sm">
+              Loading positions...
+            </div>
+          ) : (
+            <PositionsTable
+              positions={positions}
+              positionFilter={positionFilter}
+              searchQuery={searchQuery}
+              onFilterChange={setPositionFilter}
+              onSearchChange={setSearchQuery}
+            />
+          )}
+        </>
       )}
 
       {/* Activity Tab */}
       {activeTab === 'activity' && (
-        <div className="text-center py-12 text-[#f5f5f5]/50 text-sm">
-          Activity history coming soon
-        </div>
+        <>
+          {loadingBets ? (
+            <div className="text-center py-12 text-[#f5f5f5]/50 text-sm">
+              Loading activity...
+            </div>
+          ) : activity.length === 0 ? (
+            <div className="text-center py-12 text-[#f5f5f5]/50 text-sm">
+              No activity yet. Start betting to see your history here!
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activity.map((bet: any) => {
+                const side = bet.side === 'this' ? 'THIS' : 'THAT';
+                const amount = Number(bet.amount);
+                const statusColor = 
+                  bet.status === 'won' ? 'text-green-400' :
+                  bet.status === 'lost' ? 'text-red-400' :
+                  bet.status === 'cancelled' ? 'text-gray-400' :
+                  'text-yellow-400';
+                
+                return (
+                  <div key={bet.id} className="p-4 rounded-lg border border-white/10 bg-white/5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-[#f5f5f5] mb-1">
+                          {bet.market?.title || 'Unknown Market'}
+                        </h3>
+                        <div className="flex items-center gap-3 text-xs text-[#f5f5f5]/70">
+                          <span className={`font-medium ${side === 'THIS' ? 'text-green-400' : 'text-red-400'}`}>
+                            {side}
+                          </span>
+                          <span>{amount.toLocaleString()} credits</span>
+                          <span>@{Number(bet.oddsAtBet).toFixed(2)}x</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-sm font-semibold ${statusColor}`}>
+                          {bet.status.toUpperCase()}
+                        </div>
+                        {bet.status === 'won' && bet.actualPayout && (
+                          <div className="text-xs text-green-400 mt-1">
+                            +{(Number(bet.actualPayout) - amount).toLocaleString()} credits
+                          </div>
+                        )}
+                        {bet.status === 'lost' && (
+                          <div className="text-xs text-red-400 mt-1">
+                            -{amount.toLocaleString()} credits
+                          </div>
+                        )}
+                        {bet.status === 'pending' && (
+                          <div className="text-xs text-yellow-400 mt-1">
+                            Potential: {Number(bet.potentialPayout).toLocaleString()} credits
+                          </div>
+                        )}
+                        <div className="text-xs text-[#f5f5f5]/50 mt-1">
+                          {new Date(bet.placedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
 

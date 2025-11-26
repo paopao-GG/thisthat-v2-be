@@ -22,6 +22,7 @@ export interface User {
   referralCreditsEarned?: number;
   createdAt: string;
   lastLoginAt?: string;
+  lastDailyRewardAt?: string | null; // UTC timestamp of last daily reward claim
 }
 
 export interface AuthResponse {

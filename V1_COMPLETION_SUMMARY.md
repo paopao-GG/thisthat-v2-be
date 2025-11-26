@@ -8,13 +8,22 @@
 ## ✅ All Critical Features Implemented
 
 ### 1. Daily Credits System - PRD Aligned ✅
-- **Fixed:** Now matches PRD exactly
+- **Backend:** Matches PRD exactly
   - Day 1: 1000 credits
   - Day 2: 1500 credits (+500)
   - Day 3: 2000 credits (+500)
   - ... up to Day 18: 10000 credits (max)
-- **Window:** Changed from 5 minutes to 24 hours
-- **Location:** `backend/src/features/economy/economy.services.ts`
+  - UTC reset at 00:00 UTC (not rolling 24-hour window)
+  - Location: `backend/src/features/economy/economy.services.ts`
+- **Frontend Integration:** ✅ **COMPLETE**
+  - `frontend/src/shared/services/economyService.ts` - API service
+  - `frontend/src/features/profile/wallet/components/DailyCreditsSection.tsx` - Full UI component
+  - `frontend/src/shared/utils/creditSystem.ts` - UTC reset logic (matches backend)
+  - `HomePage.tsx` - Shows daily credits claim with real user data
+  - `ProfilePage.tsx` - Passes real `lastClaimDate` to components
+  - Fixed 400 Bad Request error (sends empty body `{}` for POST)
+  - Proper error handling, loading states, and success feedback
+  - Auto-refresh user data after claiming
 
 ### 2. Market Resolution System ✅
 - **Service:** `backend/src/features/market-resolution/market-resolution.services.ts`

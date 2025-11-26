@@ -22,6 +22,10 @@ export interface MarketStaticData {
   imageUrl: string | null;
   status: string;
   expiresAt: Date | null;
+  thisOdds?: number;
+  thatOdds?: number;
+  liquidity?: number;
+  marketType?: string;
 }
 
 export interface MarketLiveData {
@@ -80,18 +84,28 @@ export async function getRandomMarkets(count: number = 10): Promise<MarketStatic
 }
 
 /**
- * Get markets by category
+ * Get markets with filtering
  */
-export async function getMarketsByCategory(
-  category: string,
-  limit: number = 20
-): Promise<MarketStaticData[]> {
+export async function getMarkets(options?: {
+  status?: 'open' | 'closed' | 'resolved';
+  category?: string;
+  limit?: number;
+  skip?: number;
+}): Promise<MarketStaticData[]> {
+  const where: any = {};
+  
+  if (options?.status) {
+    where.status = options.status;
+  }
+  
+  if (options?.category) {
+    where.category = { equals: options.category, mode: 'insensitive' };
+  }
+
   const markets = await prisma.market.findMany({
-    where: {
-      status: 'open',
-      category: { equals: category, mode: 'insensitive' },
-    },
-    take: limit,
+    where,
+    take: options?.limit || 100,
+    skip: options?.skip || 0,
     orderBy: { updatedAt: 'desc' },
     select: {
       id: true,
@@ -100,15 +114,46 @@ export async function getMarketsByCategory(
       description: true,
       thisOption: true,
       thatOption: true,
+      thisOdds: true,
+      thatOdds: true,
+      liquidity: true,
       author: true,
       category: true,
       imageUrl: true,
       status: true,
       expiresAt: true,
+      marketType: true,
     },
   });
 
-  return markets;
+  return markets.map(m => ({
+    id: m.id,
+    polymarketId: m.polymarketId,
+    title: m.title,
+    description: m.description,
+    thisOption: m.thisOption,
+    thatOption: m.thatOption,
+    author: m.author,
+    category: m.category,
+    imageUrl: m.imageUrl,
+    status: m.status,
+    expiresAt: m.expiresAt,
+    // Include odds and liquidity from database (may be stale, will be updated with live data)
+    thisOdds: m.thisOdds ? Number(m.thisOdds) : undefined,
+    thatOdds: m.thatOdds ? Number(m.thatOdds) : undefined,
+    liquidity: m.liquidity ? Number(m.liquidity) : undefined,
+    marketType: m.marketType,
+  })) as MarketStaticData[];
+}
+
+/**
+ * Get markets by category
+ */
+export async function getMarketsByCategory(
+  category: string,
+  limit: number = 20
+): Promise<MarketStaticData[]> {
+  return getMarkets({ category, limit, status: 'open' });
 }
 
 /**

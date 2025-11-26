@@ -760,3 +760,152 @@ it('should call service', async () => {
 3. **No imports inside mock factories** - Keep factories self-contained
 4. **Mock objects must be hoisted** - Regular variables won't work
 5. **Test isolation is critical** - Each test should be independent
+
+## Frontend Authentication Patterns
+
+### 1. AuthContext Pattern
+**Pattern:** Global authentication state management using React Context
+
+```typescript
+// AuthContext.tsx
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refreshUser = async () => {
+    if (isAuthenticated()) {
+      const userData = await getCurrentUser();
+      setUser(userData);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, refreshUser, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// Usage in components
+const { user, logout } = useAuth();
+```
+
+**Benefits:**
+- Single source of truth for auth state
+- Available throughout the app
+- Automatic user data fetching on mount
+- Easy to refresh user data
+
+### 2. Route Protection Pattern
+**Pattern:** Protect routes with authentication requirement
+
+```typescript
+// RequireAuth.tsx
+export function RequireAuth({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, loading]);
+
+  if (!isAuthenticated) return null;
+  return <>{children}</>;
+}
+
+// Usage in App.tsx
+<Route
+  path="/app"
+  element={
+    <RequireAuth>
+      <AppLayout />
+    </RequireAuth>
+  }
+/>
+```
+
+**Benefits:**
+- Declarative route protection
+- Automatic redirect to login
+- Loading states handled
+- Reusable across routes
+
+### 3. API Service with Token Refresh Pattern
+**Pattern:** Automatic token refresh on 401 errors
+
+```typescript
+// api.ts
+async function apiRequest(endpoint, options) {
+  const token = getAccessToken();
+  const headers = { 'Authorization': `Bearer ${token}` };
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    // Try to refresh token
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      const refreshResponse = await fetch('/api/v1/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
+      
+      if (refreshResponse.ok) {
+        const { accessToken } = await refreshResponse.json();
+        setTokens(accessToken, refreshToken);
+        // Retry original request
+        return fetch(`${API_URL}${endpoint}`, {
+          ...options,
+          headers: { ...headers, 'Authorization': `Bearer ${accessToken}` },
+        });
+      }
+    }
+    
+    // If refresh fails, logout
+    clearTokens();
+    window.location.href = '/';
+  }
+
+  return response;
+}
+```
+
+**Benefits:**
+- Seamless token refresh
+- No manual token management needed
+- Automatic logout on auth failure
+- Retry failed requests with new token
+
+### 4. Profile Page Data Fetching Pattern
+**Pattern:** Fetch and display user data with loading/error states
+
+```typescript
+// ProfilePage.tsx
+const ProfilePage = () => {
+  const { user, loading } = useAuth();
+
+  // Convert backend user to frontend UserStats format
+  const userStats = user ? {
+    userId: user.id,
+    username: user.username,
+    credits: Number(user.creditBalance) || 0,
+    // ... map other fields
+  } : null;
+
+  if (loading) return <LoadingSpinner />;
+  if (!user) return <ErrorState />;
+
+  return <ProfileContent userStats={userStats} />;
+};
+```
+
+**Benefits:**
+- Type-safe data transformation
+- Loading states for better UX
+- Error handling
+- Real-time data updates
