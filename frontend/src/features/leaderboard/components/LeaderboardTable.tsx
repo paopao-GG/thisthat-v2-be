@@ -9,13 +9,13 @@ interface LeaderboardTableProps {
   timeFilter: 'today' | 'weekly' | 'monthly' | 'all';
   categoryFilter: string;
   searchQuery: string;
-  sortBy: 'volume';
+  sortBy: 'volume' | 'pnl';
   sortOrder: 'asc' | 'desc';
   categories: string[];
   onTimeFilterChange: (filter: 'today' | 'weekly' | 'monthly' | 'all') => void;
   onCategoryFilterChange: (category: string) => void;
   onSearchChange: (query: string) => void;
-  onSort: (column: 'volume') => void;
+  onSort: (column: 'volume' | 'pnl') => void;
 }
 
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
@@ -241,7 +241,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
           />
           
           <button
-            className={`flex-1 py-2 sm:py-3 px-1.5 sm:px-4 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 time-filter-button ${
+            className={`flex-1 py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 time-filter-button ${
               timeFilter === 'today'
                 ? 'text-white'
                 : 'text-[#f5f5f5]/60 hover:text-[#f5f5f5]/80'
@@ -251,34 +251,31 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
             Today
           </button>
           <button
-            className={`flex-1 py-2 sm:py-3 px-1.5 sm:px-4 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 ${
+            className={`flex-1 py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 time-filter-button ${
               timeFilter === 'weekly'
                 ? 'text-white'
                 : 'text-[#f5f5f5]/60 hover:text-[#f5f5f5]/80'
             }`}
-            className="time-filter-button-transparent"
             onClick={() => onTimeFilterChange('weekly')}
           >
             Weekly
           </button>
           <button
-            className={`flex-1 py-2 sm:py-3 px-1.5 sm:px-4 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 ${
+            className={`flex-1 py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 time-filter-button ${
               timeFilter === 'monthly'
                 ? 'text-white'
                 : 'text-[#f5f5f5]/60 hover:text-[#f5f5f5]/80'
             }`}
-            className="time-filter-button-transparent"
             onClick={() => onTimeFilterChange('monthly')}
           >
             Monthly
           </button>
           <button
-            className={`flex-1 py-2 sm:py-3 px-1.5 sm:px-4 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 ${
+            className={`flex-1 py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm transition-all font-semibold rounded relative z-10 time-filter-button ${
               timeFilter === 'all'
                 ? 'text-white'
                 : 'text-[#f5f5f5]/60 hover:text-[#f5f5f5]/80'
             }`}
-            className="time-filter-button-transparent"
             onClick={() => onTimeFilterChange('all')}
           >
             All
@@ -331,6 +328,21 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-5 sm:gap-8 md:gap-12 flex-shrink-0 ml-auto">
+              <div className="text-right min-w-[70px] sm:min-w-[80px] md:min-w-[100px]">
+                <button
+                  onClick={() => onSort('pnl')}
+                  className="text-sm sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 ml-auto leaderboard-sort-button"
+                >
+                  PNL
+                  {sortBy === 'pnl' && (
+                    sortOrder === 'desc' ? (
+                      <ArrowDown size={16} className="leaderboard-sort-icon" />
+                    ) : (
+                      <ArrowUp size={16} className="leaderboard-sort-icon" />
+                    )
+                  )}
+                </button>
+              </div>
               <div className="text-right min-w-[70px] sm:min-w-[80px] md:min-w-[100px]">
                 <button
                   onClick={() => onSort('volume')}
@@ -398,6 +410,13 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-5 sm:gap-8 md:gap-12 flex-shrink-0 ml-auto">
+                    <div className="text-right min-w-[70px] sm:min-w-[80px] md:min-w-[100px]">
+                      <span className={`text-sm sm:text-sm font-medium ${
+                        entry.pnl >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {entry.pnl >= 0 ? '+' : ''}{entry.pnl.toLocaleString()}
+                      </span>
+                    </div>
                     <div className="text-right min-w-[70px] sm:min-w-[80px] md:min-w-[100px]">
                       <span className="text-sm sm:text-sm font-medium text-[#f5f5f5]">
                         {entry.volume.toLocaleString()}

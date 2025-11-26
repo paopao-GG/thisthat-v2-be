@@ -2,6 +2,96 @@
 
 All notable changes to the THISTHAT Backend project will be documented in this file.
 
+## [V1.0.7] - 2025-01-XX - Leaderboard Page Functional
+
+### ✅ Added - Leaderboard Service
+- **New Service File**
+  - Created `frontend/src/shared/services/leaderboardService.ts`
+  - `getPnLLeaderboard(limit, offset)` - Fetches PnL leaderboard from backend
+  - `getVolumeLeaderboard(limit, offset)` - Fetches Volume leaderboard from backend
+  - `getUserRanking(type)` - Gets current user's ranking (PnL or Volume)
+  - Connects to `/api/v1/leaderboard/pnl` and `/api/v1/leaderboard/volume` endpoints
+
+### ✅ Added - Leaderboard Page Integration
+- **Real API Integration**
+  - `frontend/src/app/pages/LeaderboardPage.tsx` - Replaced mock data with real API calls
+  - Fetches data from backend based on sort type (PnL or Volume)
+  - Maps backend response format to frontend format
+  - Added loading and error states
+  - Defaults to PnL leaderboard on page load
+
+### ✅ Added - Leaderboard Table Enhancements
+- **PnL Column**
+  - Added PnL column with color coding (green for positive, red for negative)
+  - Displays PnL with +/- prefix
+  - Shows alongside Volume and $THIS token allocation columns
+- **Sorting**
+  - Made both PnL and Volume columns sortable
+  - Updated types to support `'pnl' | 'volume'` sorting
+  - Sort order (asc/desc) toggleable
+
+### ✅ Fixed - UI Issues
+- **Snackbar Spacing**
+  - Fixed unequal spacing in time filter buttons (Today, Weekly, Monthly, All)
+  - Standardized button padding: `px-2 sm:px-3` for all buttons (was inconsistent)
+  - Removed duplicate className attributes that caused styling issues
+  - All buttons now use consistent `time-filter-button` class
+
+## [V1.0.6] - 2025-01-XX - Profile Page PnL & Statistics Complete
+
+### ✅ Added - PnL Calculations
+- **Real-time PnL Calculation**
+  - Calculates PnL from bet data based on time filter (1D, 1W, 1M, ALL)
+  - Only includes realized PnL (won/lost bets, excludes pending)
+  - Color-coded display (green for positive, red for negative)
+  - Updates dynamically when time filter changes
+  - Uses `useMemo` for performance optimization
+
+- **Position Value Calculation**
+  - Sum of potential payouts from pending bets
+  - Includes refunded amounts from cancelled bets
+  - Displays in credits format
+
+- **Biggest Win Calculation**
+  - Maximum profit from won bets
+  - Calculated from actual payouts
+  - Updates based on time filter
+
+- **Predictions Count**
+  - Total bets count within selected time period
+  - Updates when time filter changes
+
+- **Win Rate Calculation**
+  - Calculated as: (wins / (wins + losses)) × 100
+  - Only includes closed bets (won/lost)
+  - Updates based on time filter
+
+### ✅ Added - Functional PnL Graph
+- **Dynamic Chart Generation**
+  - Calculates cumulative PnL over time from bet data
+  - Filters bets by time period (1D, 1W, 1M, ALL)
+  - Sorts bets chronologically to build timeline
+  - Normalizes PnL values to fit chart (handles positive/negative)
+
+- **Visual Features**
+  - Smooth quadratic curves for transitions
+  - Gradient fill area under the line
+  - Data point markers (10 for desktop, 8 for mobile)
+  - Peak point indicator (highest PnL)
+  - Zero line (break-even) when PnL goes negative
+  - Responsive design (separate markers for desktop/mobile)
+
+- **Edge Case Handling**
+  - Handles no bets (flat line)
+  - Handles single bet
+  - Handles all same PnL values
+  - Proper normalization for positive/negative ranges
+
+### ✅ Fixed
+- Duplicate `zeroLineY` declaration error
+- PnL calculation now properly excludes pending bets from realized PnL
+- Position value calculation includes pending bets correctly
+
 ## [V1.0.5] - 2025-01-XX - Daily Reward System Frontend Integration
 
 ### ✅ Added - Daily Credits Frontend Integration

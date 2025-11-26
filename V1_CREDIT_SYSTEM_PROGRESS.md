@@ -317,6 +317,17 @@ All requirements from Section 2 of the PRD have been fully implemented:
 
 ## 🎉 Recent Updates (2025-01-XX)
 
+### Profile Page PnL & Statistics - Complete
+- ✅ Real-time PnL calculation from bet data (based on time filter)
+- ✅ Position value calculation (sum of pending bet payouts)
+- ✅ Biggest win calculation (maximum profit from won bets)
+- ✅ Predictions count (total bets within time period)
+- ✅ Win rate calculation (wins / (wins + losses) × 100)
+- ✅ Functional PnL graph with dynamic SVG chart generation
+  - Cumulative PnL over time
+  - Smooth curves, data markers, peak indicator, zero line
+  - Updates automatically when bets or time filter changes
+
 ### Daily Reward System - Frontend Integration Complete
 - ✅ Created `economyService.ts` with `claimDailyCredits()` API call
 - ✅ Fixed 400 Bad Request error by sending empty body `{}` for POST requests

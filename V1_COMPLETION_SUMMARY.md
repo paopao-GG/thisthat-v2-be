@@ -5,6 +5,28 @@
 
 ---
 
+## ✅ Latest Updates (2025-01-XX)
+
+### Leaderboard Page - Functional ✅
+- **Leaderboard Service** - Created `leaderboardService.ts` with API integration
+- **Real API Integration** - Connected to backend `/api/v1/leaderboard/pnl` and `/volume` endpoints
+- **PnL & Volume Sorting** - Both columns are sortable with asc/desc toggle
+- **PnL Column** - Added with color coding (green/red) and +/- prefix
+- **UI Fixes** - Fixed snackbar spacing issue (equal spacing for all time filter buttons)
+- **Loading/Error States** - Proper handling of API loading and error states
+
+### Profile Page PnL & Statistics - Complete ✅
+- **PnL Calculations** - Real-time calculation from bet data based on time filter
+- **Position Value** - Sum of potential payouts from pending bets
+- **Biggest Win** - Maximum profit from won bets
+- **Predictions Count** - Total bets within selected time period
+- **Win Rate** - Calculated from closed bets
+- **Functional PnL Graph** - Dynamic SVG chart with cumulative PnL over time
+  - Smooth curves, data markers, peak indicator, zero line
+  - Updates automatically when bets or time filter changes
+
+---
+
 ## ✅ All Critical Features Implemented
 
 ### 1. Daily Credits System - PRD Aligned ✅
@@ -245,10 +267,13 @@
 
 ✅ Market resolution and payout processing  
 ✅ Leaderboard system  
-✅ Daily credits PRD alignment  
+✅ Daily credits PRD alignment (frontend integration complete)  
 ✅ Credit transactions endpoint  
 ✅ Auth refresh/logout  
 ✅ Redis caching  
+✅ Profile page PnL calculations (real-time from bet data)  
+✅ Functional PnL graph (dynamic SVG chart)  
+✅ Position value, biggest win, predictions count, win rate  
 
 The system is ready for testing and can proceed to production deployment after thorough testing.
 

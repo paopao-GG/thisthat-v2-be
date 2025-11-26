@@ -57,6 +57,11 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - `frontend/src/app/pages/PreLogin.tsx` - OAuth login page ✅
 - `frontend/src/app/pages/AuthCallback.tsx` - OAuth callback handler ✅
 - `frontend/src/app/pages/StockMarketPage.tsx` - Stock market trading UI ✅
+- `frontend/src/app/pages/LeaderboardPage.tsx` - Leaderboard page ✅
+  - **Fetches real leaderboard data from backend API** ✅
+  - **PnL and Volume leaderboard support** ✅
+  - **Loading and error states** ✅
+  - **Sorting by PnL or Volume** ✅
 - `frontend/src/app/pages/ProfilePage.tsx` - Profile page ✅
   - **Fetches real user data from `/api/v1/auth/me`** ✅
   - **Displays user credits, username, stats, referral code** ✅
@@ -66,9 +71,17 @@ As of 2025-01-XX, V1 is **COMPLETE**:
   - **Fetches real user bets from `/api/v1/bets/me`** ✅
   - **Calculates PnL, value, and percentages for each position** ✅
   - **Filters bets into active (pending) and closed (won/lost/cancelled)** ✅
+  - **Real-time PnL calculation from bet data (based on time filter)** ✅
+  - **Position value, biggest win, predictions count, win rate calculations** ✅
+  - **Functional PnL graph with dynamic chart generation** ✅
   - Loading and error states
 - `frontend/src/features/betting/components/MarketCard.tsx` - Market display ✅
 - `frontend/src/features/betting/components/BettingControls.tsx` - Betting interface ✅
+- `frontend/src/features/profile/components/ProfileSummaryCard.tsx` - Profile summary with PnL graph ✅
+  - Real-time PnL calculation from bet data
+  - Functional dynamic SVG chart with cumulative PnL
+  - Position value, biggest win, predictions count display
+  - Time filter (1D, 1W, 1M, ALL) with dynamic updates
 - `frontend/src/shared/services/api.ts` - HTTP client with auth & token refresh ✅
 - `frontend/src/shared/services/authService.ts` - Auth API client ✅
 - `frontend/src/shared/services/betService.ts` - Betting API client (placeBet, getUserBets) ✅
@@ -211,7 +224,65 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 
 ## Recent Changes
 
-### 2025-01-XX (Latest - Daily Reward System Frontend Integration)
+### 2025-01-XX (Latest - Leaderboard Page Functional)
+- ✅ **Leaderboard Service Created**
+  - `frontend/src/shared/services/leaderboardService.ts` - New service for leaderboard API calls
+  - Functions: `getPnLLeaderboard()`, `getVolumeLeaderboard()`, `getUserRanking()`
+  - Connects to backend endpoints: `/api/v1/leaderboard/pnl` and `/api/v1/leaderboard/volume`
+- ✅ **Leaderboard Page Functional**
+  - `frontend/src/app/pages/LeaderboardPage.tsx` - Now uses real API data instead of mock
+  - Fetches leaderboard data from backend based on sort type
+  - Maps backend format (`{ rank, user: { id, username }, overallPnL, totalVolume }`) to frontend format
+  - Added loading and error states
+  - Defaults to PnL leaderboard
+- ✅ **Leaderboard Table Enhanced**
+  - Added PnL column with color coding (green/red)
+  - Both PnL and Volume columns are now sortable
+  - Updated types to support `'pnl' | 'volume'` sorting
+  - Displays PnL with +/- prefix
+- ✅ **UI Fixes**
+  - Fixed snackbar spacing issue in `LeaderboardTable.tsx`
+  - Equal spacing for all time filter buttons (Today, Weekly, Monthly, All)
+  - Standardized padding: `px-2 sm:px-3` (was inconsistent `px-1.5 sm:px-4`)
+  - Removed duplicate className attributes that caused styling issues
+  - All buttons now use consistent `time-filter-button` class
+
+### 2025-01-XX (Profile Page PnL & Statistics Complete)
+- ✅ **PnL Calculations Working**
+  - Real-time PnL calculation from bet data
+  - Filters bets by time period (1D, 1W, 1M, ALL)
+  - Only includes realized PnL (won/lost bets)
+  - Color-coded display (green/red)
+  - Uses `useMemo` for performance optimization
+- ✅ **Position Value Working**
+  - Calculates sum of potential payouts from pending bets
+  - Includes refunded amounts from cancelled bets
+  - Updates dynamically
+- ✅ **Biggest Win Working**
+  - Finds maximum profit from won bets
+  - Calculated from actual payouts
+  - Updates based on time filter
+- ✅ **Predictions Count Working**
+  - Counts total bets within selected time period
+  - Updates when time filter changes
+- ✅ **Win Rate Working**
+  - Calculates win rate from closed bets
+  - Formula: (wins / (wins + losses)) × 100
+  - Updates based on time filter
+- ✅ **Functional PnL Graph**
+  - Dynamic SVG chart generation from bet data
+  - Calculates cumulative PnL over time chronologically
+  - Normalizes PnL values to fit chart (handles positive/negative)
+  - Generates smooth quadratic curve paths
+  - Creates area fill path for gradient visualization
+  - Shows data point markers (10 for desktop, 8 for mobile)
+  - Highlights peak point (highest PnL)
+  - Displays zero line (break-even) when PnL goes negative
+  - Handles edge cases (no bets, single bet, all same value)
+  - Updates automatically when bets or time filter changes
+  - Location: `frontend/src/features/profile/components/ProfileSummaryCard.tsx`
+
+### 2025-01-XX (Daily Reward System Frontend Integration)
 - ✅ **Daily Credits Frontend Integration Complete**
   - Created `frontend/src/shared/services/economyService.ts` with `claimDailyCredits()` function
   - Fixed 400 Bad Request error by sending empty body `{}` for POST requests

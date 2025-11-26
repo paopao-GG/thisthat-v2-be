@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { UserStats } from '@shared/types';
 import '@/styles/profile/style.css';
 
@@ -10,7 +10,9 @@ interface ProfileSummaryCardProps {
   userStats: UserStats;
   positions: Position[];
   biggestWin: number;
+  positionValue: number;
   timeFilter: '1D' | '1W' | '1M' | 'ALL';
+  bets?: any[]; // Bet data for chart calculation
   onTimeFilterChange: (filter: '1D' | '1W' | '1M' | 'ALL') => void;
   onConnectWallet?: () => void;
   onReferralClick?: () => void;
@@ -20,14 +22,191 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
   userStats,
   positions,
   biggestWin,
+  positionValue,
   timeFilter,
+  bets = [],
   onTimeFilterChange,
   onConnectWallet,
   onReferralClick
 }) => {
   const timeFilterContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
-  const positionsValue = positions[0]?.value || 0;
+  
+  // Calculate total position value from all active positions
+  const calculatedPositionValue = positions.reduce((sum, pos) => sum + pos.value, 0);
+  // Use provided positionValue if available, otherwise calculate from positions
+  const displayPositionValue = positionValue > 0 ? positionValue : calculatedPositionValue;
+
+  // Calculate PnL chart data points
+  const chartData = useMemo(() => {
+    if (!bets || bets.length === 0) {
+      // Return flat line at bottom (neutral PnL)
+      return {
+        path: 'M 0,55 L 200,55',
+        areaPath: 'M 0,55 L 200,55 L 200,60 L 0,60 Z',
+        desktopMarkers: [],
+        mobileMarkers: [],
+        peak: null,
+        zeroLineY: 55, // Zero line at bottom when no data
+      };
+    }
+
+    const now = new Date();
+    let filteredBets = [...bets];
+
+    // Filter bets by time
+    if (timeFilter !== 'ALL') {
+      const daysAgo = timeFilter === '1D' ? 1 : timeFilter === '1W' ? 7 : 30;
+      const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+      filteredBets = bets.filter((bet: any) => {
+        const betDate = new Date(bet.placedAt);
+        return betDate >= cutoffDate;
+      });
+    }
+
+    if (filteredBets.length === 0) {
+      return {
+        path: 'M 0,55 L 200,55',
+        areaPath: 'M 0,55 L 200,55 L 200,60 L 0,60 Z',
+        desktopMarkers: [],
+        mobileMarkers: [],
+        peak: null,
+        zeroLineY: 55, // Zero line at bottom when no data
+      };
+    }
+
+    // Sort bets by date
+    filteredBets.sort((a: any, b: any) => {
+      return new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime();
+    });
+
+    // Calculate cumulative PnL over time
+    const dataPoints: { date: Date; pnl: number }[] = [];
+    let cumulativePnL = 0;
+
+    filteredBets.forEach((bet: any) => {
+      const amount = Number(bet.amount);
+      const actualPayout = bet.actualPayout ? Number(bet.actualPayout) : null;
+
+      if (bet.status === 'won' && actualPayout) {
+        cumulativePnL += (actualPayout - amount);
+      } else if (bet.status === 'lost') {
+        cumulativePnL -= amount;
+      }
+      // Pending and cancelled bets don't affect realized PnL
+
+      dataPoints.push({
+        date: new Date(bet.placedAt),
+        pnl: cumulativePnL,
+      });
+    });
+
+    if (dataPoints.length === 0) {
+      return {
+        path: 'M 0,55 L 200,55',
+        areaPath: 'M 0,55 L 200,55 L 200,60 L 0,60 Z',
+        desktopMarkers: [],
+        mobileMarkers: [],
+        peak: null,
+        zeroLineY: 55,
+      };
+    }
+
+    // Find min and max PnL for normalization
+    const pnlValues = dataPoints.map(p => p.pnl);
+    const minPnL = Math.min(...pnlValues);
+    const maxPnL = Math.max(...pnlValues);
+    
+    // Ensure we have a baseline at 0 for better visualization
+    const absMin = Math.min(minPnL, 0);
+    const absMax = Math.max(maxPnL, 0);
+    
+    // If all values are the same, create a small range for visualization
+    let range = absMax - absMin;
+    if (range === 0) {
+      // All values are the same - create a small range around the value
+      const value = pnlValues[0] || 0;
+      range = Math.max(Math.abs(value) * 0.2, 100); // 20% of value or 100 credits minimum
+    }
+
+    // Chart dimensions (viewBox: 0 0 200 60)
+    const chartWidth = 200;
+    const chartHeight = 60;
+    const paddingTop = 2; // Space from top
+    const paddingBottom = 5; // Space from bottom
+    const usableHeight = chartHeight - paddingTop - paddingBottom;
+
+    const points = dataPoints.map((point, index) => {
+      // X: time position (0 to 200)
+      const x = dataPoints.length === 1 ? chartWidth / 2 : (index / (dataPoints.length - 1)) * chartWidth;
+      
+      // Y: PnL position (inverted: higher PnL = lower Y value)
+      // Normalize PnL relative to absMin, then map to chart height
+      const normalizedPnL = (point.pnl - absMin) / range;
+      const y = chartHeight - paddingBottom - (normalizedPnL * usableHeight);
+      
+      // Clamp Y to chart bounds
+      const clampedY = Math.max(paddingTop, Math.min(chartHeight - paddingBottom, y));
+      
+      return { x, y: clampedY, pnl: point.pnl };
+    });
+
+    // Generate SVG path
+    let path = '';
+    let areaPath = '';
+    
+    if (points.length === 1) {
+      // Single point - horizontal line
+      path = `M 0,${points[0].y} L ${chartWidth},${points[0].y}`;
+      areaPath = `M 0,${points[0].y} L ${chartWidth},${points[0].y} L ${chartWidth},${chartHeight} L 0,${chartHeight} Z`;
+    } else {
+      // Build path with smooth curves
+      path = `M ${points[0].x},${points[0].y}`;
+      areaPath = `M ${points[0].x},${points[0].y}`;
+      
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        
+        // Use quadratic curves for smooth transitions
+        const controlX = (prev.x + curr.x) / 2;
+        path += ` Q ${controlX},${prev.y} ${curr.x},${curr.y}`;
+        areaPath += ` Q ${controlX},${prev.y} ${curr.x},${curr.y}`;
+      }
+      
+      // Close area path
+      areaPath += ` L ${chartWidth},${chartHeight} L 0,${chartHeight} Z`;
+    }
+
+    // Generate markers (show every Nth point for desktop, fewer for mobile)
+    const desktopMarkers = points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 10)) === 0 || i === points.length - 1);
+    const mobileMarkers = points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 8)) === 0 || i === points.length - 1);
+
+    // Find peak point
+    const peakPoint = points.reduce((max, point) => (point.pnl > max.pnl ? point : max), points[0]);
+
+    // Calculate zero line Y position
+    let zeroLineY: number | null = null;
+    if (absMin < 0) {
+      // There are negative values, calculate where zero should be
+      const normalizedZero = (0 - absMin) / range;
+      zeroLineY = chartHeight - paddingBottom - (normalizedZero * usableHeight);
+      // Clamp to chart bounds
+      zeroLineY = Math.max(paddingTop, Math.min(chartHeight - paddingBottom, zeroLineY));
+    } else if (absMax > 0) {
+      // All positive, zero line at bottom
+      zeroLineY = chartHeight - paddingBottom;
+    }
+
+    return {
+      path,
+      areaPath,
+      desktopMarkers,
+      mobileMarkers,
+      peak: peakPoint,
+      zeroLineY,
+    };
+  }, [bets, timeFilter]);
 
   // Update slider position when timeFilter changes
   useEffect(() => {
@@ -112,13 +291,13 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
             <div className="flex flex-col gap-1 pr-6 lg:pr-8 profile-stat-divider">
               <span className="text-xs text-[#f5f5f5]/50 uppercase tracking-wider font-medium">POSITIONS VALUE</span>
               <span className="text-lg sm:text-xl font-bold text-[#f5f5f5]">
-                ${positionsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {displayPositionValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} credits
               </span>
             </div>
             <div className="flex flex-col gap-1 px-6 lg:px-8 profile-stat-divider">
               <span className="text-xs text-[#f5f5f5]/50 uppercase tracking-wider font-medium">BIGGEST WIN</span>
               <span className="text-lg sm:text-xl font-bold text-[#f5f5f5]">
-                ${(biggestWin / 1000000).toFixed(1)}m
+                {biggestWin > 0 ? `+${biggestWin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} credits` : '0 credits'}
               </span>
             </div>
             <div className="flex flex-col gap-1 pl-6 lg:pl-8">
@@ -156,8 +335,8 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
                 ))}
               </div>
             </div>
-            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-              ${userStats.totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className={`text-xl sm:text-2xl lg:text-3xl font-bold ${userStats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {userStats.totalPnL >= 0 ? '+' : ''}{userStats.totalPnL.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} credits
             </div>
             {/* Chart */}
             <div className="h-16 sm:h-20 md:h-24 lg:h-28 w-full mt-4 relative overflow-hidden">
@@ -173,25 +352,37 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
                     <stop offset="100%" stopColor="#764ba2" stopOpacity="0" />
                   </linearGradient>
                 </defs>
+                {/* Zero line (break-even) */}
+                {chartData.zeroLineY !== null && chartData.zeroLineY > 2 && chartData.zeroLineY < 58 && (
+                  <line
+                    x1="0"
+                    y1={chartData.zeroLineY}
+                    x2="200"
+                    y2={chartData.zeroLineY}
+                    stroke="rgba(245, 245, 245, 0.15)"
+                    strokeWidth="0.5"
+                    strokeDasharray="2,2"
+                  />
+                )}
                 {/* Desktop: Gradient fill area */}
                 <path
                   id="desktop-area"
                   className="chart-desktop-area"
-                  d="M 0,55 L 18,55 L 36,54.9 L 54,55 L 72,54.8 L 90,55 L 108,54.9 L 126,55 L 144,54.8 L 150,55 Q 155,55 160,50 Q 165,40 170,25 Q 175,10 180,5 Q 185,2 190,1 Q 195,0.5 200,2 L 200,60 L 0,60 Z"
+                  d={chartData.areaPath}
                   fill="url(#chartAreaGradient)"
                 />
                 {/* Mobile/Tablet: Gradient fill area */}
                 <path
                   id="mobile-area"
                   className="chart-mobile-area"
-                  d="M 0,55 L 20,55 L 40,55 L 60,54.8 L 80,55 L 100,55 L 120,54.8 L 140,55 L 160,55 Q 165,55 170,50 Q 175,40 180,25 Q 185,10 190,5 Q 195,2 200,3 L 200,60 L 0,60 Z"
+                  d={chartData.areaPath}
                   fill="url(#chartAreaGradient)"
                 />
                 {/* Desktop: Chart path */}
                 <path
                   id="desktop-line"
                   className="chart-desktop-line profile-chart-stroke"
-                  d="M 0,55 L 18,55 L 36,54.9 L 54,55 L 72,54.8 L 90,55 L 108,54.9 L 126,55 L 144,54.8 L 150,55 Q 155,55 160,50 Q 165,40 170,25 Q 175,10 180,5 Q 185,2 190,1 Q 195,0.5 200,2"
+                  d={chartData.path}
                   fill="none"
                   stroke="url(#chartGradient)"
                   strokeWidth="0.5"
@@ -202,46 +393,43 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
                 <path
                   id="mobile-line"
                   className="chart-mobile-line profile-chart-stroke"
-                  d="M 0,55 L 20,55 L 40,55 L 60,54.8 L 80,55 L 100,55 L 120,54.8 L 140,55 L 160,55 Q 165,55 170,50 Q 175,40 180,25 Q 185,10 190,5 Q 195,2 200,3"
+                  d={chartData.path}
                   fill="none"
                   stroke="url(#chartGradient)"
                   strokeWidth="0.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Desktop: 9 data point markers along flat section (75%) */}
-                <g id="desktop-markers" className="chart-desktop-markers">
-                  <circle cx="18" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="36" cy="54.9" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="54" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="72" cy="54.8" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="90" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="108" cy="54.9" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="126" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="144" cy="54.8" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="150" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                </g>
-                {/* Mobile/Tablet: 8 data point markers */}
-                <g id="mobile-markers" className="chart-mobile-markers">
-                  <circle cx="20" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="40" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="60" cy="54.8" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="80" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="100" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="120" cy="54.8" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="140" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                  <circle cx="160" cy="55" r="1" fill="#667eea" opacity="0.6" />
-                </g>
-                {/* Desktop: Peak marker - within container */}
-                <g id="desktop-peak" className="chart-desktop-peak">
-                  <circle cx="200" cy="2" r="2" fill="#764ba2" />
-                  <circle cx="200" cy="2" r="4" fill="#764ba2" opacity="0.2" />
-                </g>
+                {/* Desktop: Data point markers */}
+                {chartData.desktopMarkers.length > 0 && (
+                  <g id="desktop-markers" className="chart-desktop-markers">
+                    {chartData.desktopMarkers.map((point, i) => (
+                      <circle key={`desktop-${i}`} cx={point.x} cy={point.y} r="1" fill="#667eea" opacity="0.6" />
+                    ))}
+                  </g>
+                )}
+                {/* Mobile/Tablet: Data point markers */}
+                {chartData.mobileMarkers.length > 0 && (
+                  <g id="mobile-markers" className="chart-mobile-markers">
+                    {chartData.mobileMarkers.map((point, i) => (
+                      <circle key={`mobile-${i}`} cx={point.x} cy={point.y} r="1" fill="#667eea" opacity="0.6" />
+                    ))}
+                  </g>
+                )}
+                {/* Desktop: Peak marker */}
+                {chartData.peak && (
+                  <g id="desktop-peak" className="chart-desktop-peak">
+                    <circle cx={chartData.peak.x} cy={chartData.peak.y} r="2" fill="#764ba2" />
+                    <circle cx={chartData.peak.x} cy={chartData.peak.y} r="4" fill="#764ba2" opacity="0.2" />
+                  </g>
+                )}
                 {/* Mobile/Tablet: Peak marker */}
-                <g id="mobile-peak" className="chart-mobile-peak">
-                  <circle cx="200" cy="3" r="2" fill="#764ba2" />
-                  <circle cx="200" cy="3" r="4" fill="#764ba2" opacity="0.2" />
-                </g>
+                {chartData.peak && (
+                  <g id="mobile-peak" className="chart-mobile-peak">
+                    <circle cx={chartData.peak.x} cy={chartData.peak.y} r="2" fill="#764ba2" />
+                    <circle cx={chartData.peak.x} cy={chartData.peak.y} r="4" fill="#764ba2" opacity="0.2" />
+                  </g>
+                )}
               </svg>
             </div>
           </div>

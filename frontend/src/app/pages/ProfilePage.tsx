@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@shared/contexts/AuthContext';
@@ -37,16 +37,89 @@ const ProfilePage: React.FC = () => {
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
 
+  // Calculate stats from bets (memoized to recalculate when bets or timeFilter changes)
+  const stats = useMemo(() => {
+    if (allBets.length === 0) {
+      return {
+        totalPnL: 0,
+        positionValue: 0,
+        biggestWin: 0,
+        totalBets: 0,
+        winRate: 0,
+      };
+    }
+
+    const now = new Date();
+    let filteredBets = allBets;
+
+    // Filter bets by time
+    if (timeFilter !== 'ALL') {
+      const daysAgo = timeFilter === '1D' ? 1 : timeFilter === '1W' ? 7 : 30;
+      const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+      filteredBets = allBets.filter((bet: any) => {
+        const betDate = new Date(bet.placedAt);
+        return betDate >= cutoffDate;
+      });
+    }
+
+    // Calculate PnL from filtered bets
+    let totalPnL = 0;
+    let positionValue = 0;
+    let biggestWin = 0;
+    let totalBets = filteredBets.length;
+    let wins = 0;
+    let losses = 0;
+
+    filteredBets.forEach((bet: any) => {
+      const amount = Number(bet.amount);
+      const actualPayout = bet.actualPayout ? Number(bet.actualPayout) : null;
+      const potentialPayout = Number(bet.potentialPayout) || (amount / (Number(bet.oddsAtBet) || 0.5));
+
+      if (bet.status === 'won' && actualPayout) {
+        // Won bet: realized profit
+        const profit = actualPayout - amount;
+        totalPnL += profit;
+        if (profit > biggestWin) {
+          biggestWin = profit;
+        }
+        wins++;
+      } else if (bet.status === 'lost') {
+        // Lost bet: realized loss
+        totalPnL -= amount;
+        losses++;
+      } else if (bet.status === 'pending') {
+        // Pending bet: unrealized, add to position value only
+        positionValue += potentialPayout;
+        // Don't add to PnL (unrealized)
+      } else if (bet.status === 'cancelled') {
+        // Cancelled bet: refunded, doesn't affect PnL
+        positionValue += amount; // Refunded amount
+      }
+    });
+
+    // Calculate win rate (only for closed bets)
+    const closedBets = wins + losses;
+    const winRate = closedBets > 0 ? (wins / closedBets) * 100 : 0;
+
+    return {
+      totalPnL,
+      positionValue,
+      biggestWin,
+      totalBets,
+      winRate,
+    };
+  }, [allBets, timeFilter]);
+
   // Convert user data to UserStats format
   const userStats: UserStats | null = user ? {
     userId: user.id,
     username: user.username,
     credits: Number(user.creditBalance) || 0,
     totalVolume: Number(user.totalVolume) || 0,
-    totalPnL: Number(user.overallPnL) || 0,
+    totalPnL: stats.totalPnL, // Use calculated PnL based on time filter
     rank: user.rankByPnL || 0,
-    winRate: 0, // TODO: Calculate from bets
-    totalBets: 0, // TODO: Fetch from bets endpoint
+    winRate: stats.winRate,
+    totalBets: stats.totalBets,
     dailyStreak: user.consecutiveDaysOnline || 0,
     tokenAllocation: 0, // V1 doesn't have tokens
     lockedTokens: 0, // V1 doesn't have tokens
@@ -56,7 +129,8 @@ const ProfilePage: React.FC = () => {
   const referralCode = user?.referralCode || '';
   const referralLink = referralCode ? `https://thisthat.app/ref/${referralCode}` : '';
 
-  const biggestWin = 0; // TODO: Calculate from bets
+  const biggestWin = stats.biggestWin;
+  const positionValue = stats.positionValue;
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -309,7 +383,9 @@ const ProfilePage: React.FC = () => {
         userStats={userStats}
         positions={positions}
         biggestWin={biggestWin}
+        positionValue={positionValue}
         timeFilter={timeFilter}
+        bets={allBets}
         onTimeFilterChange={setTimeFilter}
         onReferralClick={() => setIsModalOpen(true)}
       />

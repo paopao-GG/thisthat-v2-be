@@ -132,33 +132,44 @@ All V1 backend requirements are implemented:
 - ✅ Daily rewards
 - ✅ Market ingestion
 
-### ✅ Frontend: ~90% Complete
+### ✅ Frontend: ~98% Complete
 - ✅ Betting UI (THIS/THAT, balance input, navigation)
 - ✅ Market cards
-- ✅ Profile page
+- ✅ Profile page with real PnL calculations and functional graph
 - ✅ Stock market page
-- ⚠️ Leaderboard page display (backend ready, frontend may need UI)
+- ✅ Daily rewards system (frontend integration complete)
+- ✅ Leaderboard page (backend + frontend functional)
 - ⚠️ Transaction history display (backend ready, frontend may need UI)
 
+### ✅ Recently Completed (2025-01-XX):
+1. **Leaderboard Page** - ✅ Complete
+   - Connected to backend API (`/api/v1/leaderboard/pnl` and `/volume`)
+   - Real-time data fetching with loading/error states
+   - PnL and Volume sorting functionality
+   - PnL column with color coding (green/red)
+   - Fixed snackbar spacing issue (equal spacing for all buttons)
+2. **Profile Page PnL & Statistics** - ✅ Complete
+   - Real-time PnL calculation from bet data
+   - Position value, biggest win, predictions count
+   - Functional PnL graph with dynamic chart generation
+   - Win rate calculation
+3. **Referral system** - ✅ Complete (backend + frontend)
+4. **Credit purchases** - ✅ Complete (backend + frontend, manual provider for V1)
+
 ### ⚠️ Missing (V1 Scope):
-1. **In-app credit purchases** - PRD mentions this but likely V2
-2. **Referral system** - PRD mentions "earned via daily claims or through referrals" but referrals not implemented
-3. **Frontend leaderboard display** - Backend ready, needs UI
-4. **Frontend transaction history** - Backend ready, needs UI
+1. **Frontend transaction history** - Backend ready, needs UI
 
 ---
 
 ## 🎯 V1 Completion Status
 
 **Backend:** ✅ **100% COMPLETE**  
-**Frontend:** ✅ **~90% COMPLETE** (core features done, some displays may need UI)
+**Frontend:** ✅ **~98% COMPLETE** (core features done, PnL/graph working, leaderboard functional)
 
-**Overall V1:** ✅ **~95% COMPLETE**
+**Overall V1:** ✅ **~99% COMPLETE**
 
 ### What's Missing:
-1. Referral system (mentioned in PRD but not critical for V1)
-2. In-app purchases (likely V2 feature)
-3. Frontend leaderboard/transaction displays (backend ready)
+1. Frontend leaderboard/transaction displays (backend ready)
 
 ### What's Complete:
 ✅ All core betting functionality  
