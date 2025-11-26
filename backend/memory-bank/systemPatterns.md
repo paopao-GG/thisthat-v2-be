@@ -22,6 +22,8 @@
 │  │  Leaderboard Module (Rankings) ✅     │  │
 │  │  Market Resolution Module ✅          │  │
 │  │  Transaction History Module ✅        │  │
+│  │  Referral Module (Codes, Stats) ✅    │  │
+│  │  Purchase Module (Packages) ✅        │  │
 │  └──────────────────────────────────────┘  │
 └────────┬─────────────────────┬──────────────┘
          │                     │
@@ -50,7 +52,10 @@ features/
 ├── economy/       # Economy system (daily credits, stocks) ✅
 ├── sync/          # MongoDB ↔ PostgreSQL sync ✅
 ├── fetching/      # Polymarket data fetching ✅
-└── leaderboard/   # Ranking system ⏳
+├── leaderboard/   # Ranking system ✅
+├── referrals/     # Referral codes and stats ✅
+├── purchases/     # Credit purchase packages ✅
+└── transactions/  # Transaction history ✅
 ```
 
 **Rationale:**
@@ -404,19 +409,68 @@ setInterval(ingestPolymarketMarkets, 5 * 60 * 1000);
 
 #### Path 3: Daily Reward Claim
 ```
-1. POST /api/v1/rewards/daily
+1. POST /api/v1/economy/daily-credits
    → Verify JWT token
    → Check last_daily_reward_at timestamp
-   → If >= 24h or null:
+   → If >= 24h UTC or null:
      → Start transaction
-       → Credit 100 credits to user
+       → Calculate credits (1000 start, +500/day up to 10000 max)
+       → Credit calculated amount to user
        → Update last_daily_reward_at to NOW()
+       → Update consecutiveDaysOnline
        → Create daily_rewards record
        → Create credit_transaction record
      → Commit transaction
      → Return reward details
    → Else:
      → Return error with next available time
+```
+
+#### Path 4: Referral Signup Flow
+```
+1. POST /api/v1/auth/signup
+   → Validate email/username/password/name
+   → Check optional referralCode parameter
+   → If referralCode provided:
+     → Find referrer by referralCode
+     → Start transaction:
+       → Create new user
+       → Generate 8-character referral code for new user
+       → Credit 200 credits to referrer
+       → Increment referrer.referralCount
+       → Update referrer.referralCreditsEarned
+       → Link new user to referrer (referredBy field)
+       → Create credit_transaction for referrer bonus
+     → Commit transaction
+   → Else:
+     → Create user normally
+   → Generate JWT tokens
+   → Return user + tokens
+```
+
+#### Path 5: Credit Purchase Flow
+```
+1. GET /api/v1/purchases/packages
+   → Return list of available packages (Starter, Boost, Pro, Whale)
+   → Each package includes: id, credits, usd price, label
+
+2. POST /api/v1/purchases
+   → Verify JWT token
+   → Validate packageId (must be valid package)
+   → Start transaction:
+     → Get package details
+     → Create creditPurchase record (status: 'completed', provider: 'manual' for V1)
+     → Credit package.credits to user balance
+     → Update user.availableCredits
+     → Create credit_transaction record
+     → Generate SHA-256 transaction hash
+   → Commit transaction
+   → Return purchase confirmation
+
+3. GET /api/v1/purchases/me
+   → Verify JWT token
+   → Query user's purchase history
+   → Return paginated list of purchases
 ```
 
 ## Design Patterns in Use

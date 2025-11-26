@@ -1,13 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Wallet } from 'lucide-react';
+import { useAuth } from '@shared/contexts/AuthContext';
 import '@/styles/shared/style.css';
-
-// Mock user data - in a real app, this would come from context/API
-const mockUserCredits = 1000;
 
 const TopBar: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  const userCredits = user ? Number(user.creditBalance) || 0 : 0;
 
   return (
     <header className="px-6 py-4 z-[100] premium-glass border-b topbar-header">
@@ -36,7 +37,7 @@ const TopBar: React.FC = () => {
             </svg>
             <Wallet size={18} className="wallet-icon-gradient" style={{ stroke: 'url(#wallet-gradient)' }} />
             <span className="text-sm font-semibold text-white tracking-wide">
-              {mockUserCredits.toLocaleString()}
+              {userCredits.toLocaleString()}
             </span>
           </div>
         </div>

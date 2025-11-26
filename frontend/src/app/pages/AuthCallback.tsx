@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { setTokens } from '@shared/services/api';
+import { getCurrentUser } from '@shared/services/authService';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -26,15 +28,11 @@ const AuthCallback: React.FC = () => {
 
     if (accessToken && refreshToken) {
       // Store tokens
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      if (userId) {
-        localStorage.setItem('userId', userId);
-      }
+      setTokens(accessToken, refreshToken, userId || undefined);
       
       console.log('Tokens stored, redirecting to /app');
       
-      // Redirect to app
+      // Redirect to app - AuthProvider will fetch user data
       navigate('/app', { replace: true });
     } else {
       console.error('Missing tokens in callback');

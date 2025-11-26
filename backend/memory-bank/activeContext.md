@@ -14,6 +14,8 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - ✅ MongoDB ↔ PostgreSQL Sync (100%)
 - ✅ Redis Caching (100% - optional, graceful fallback)
 - ✅ Credit Transactions Endpoint (100%)
+- ✅ Referral System (100% - referral codes, stats, bonuses)
+- ✅ Credit Purchase System (100% - packages, purchase history)
 
 1. ✅ Backend PRD documented
 2. ✅ Memory Bank established (7 core files)
@@ -129,7 +131,7 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 
 ## V1 API Endpoints Checklist
 
-**Total: 14 endpoints** (see backend_prd.md section 5 for full specs)
+**Total: 20+ endpoints** (see backend_prd.md section 5 for full specs)
 
 ### Phase 1 Endpoints (Complete ✅)
 - [x] GET /health - Server health check
@@ -183,11 +185,41 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 ### Credit Transactions (1 endpoint)
 - [x] GET /api/v1/transactions/me ✅ **IMPLEMENTED**
 
+### Referrals (1 endpoint)
+- [x] GET /api/v1/referrals/me ✅ **IMPLEMENTED**
+  - Returns referral code, stats, and recent referrals
+  - Tracks referral count and credits earned
+
+### Purchases (3 endpoints)
+- [x] GET /api/v1/purchases/packages ✅ **IMPLEMENTED**
+- [x] POST /api/v1/purchases ✅ **IMPLEMENTED**
+- [x] GET /api/v1/purchases/me ✅ **IMPLEMENTED**
+
 ---
 
 ## Recent Changes
 
-### 2025-01-XX (Latest - Unit Test Suite Complete)
+### 2025-01-XX (Latest - Referrals & Purchases Complete)
+- ✅ **Referral System Implemented**
+  - Optional referral codes on signup
+  - Awards +200 credits to referrers
+  - GET /api/v1/referrals/me endpoint for stats
+  - Tracks referral count and credits earned
+  - Frontend integration complete
+- ✅ **Credit Purchase System Implemented**
+  - Predefined credit packages (Starter, Boost, Pro, Whale)
+  - GET /api/v1/purchases/packages - List available packages
+  - POST /api/v1/purchases - Purchase credits
+  - GET /api/v1/purchases/me - Purchase history
+  - Simulated settlement (manual provider for V1)
+  - Frontend integration complete
+- ✅ **Frontend2 Integration**
+  - Connected React app to all V1 credit pathways
+  - RequireAuth guard for protected routes
+  - Profile page shows referral stats and purchase options
+  - Real-time data from API
+
+### 2025-01-XX (Unit Test Suite Complete)
 - ✅ **Complete V1 Unit Test Suite**
   - 222 unit tests covering all V1 features
   - Tests for all services and controllers

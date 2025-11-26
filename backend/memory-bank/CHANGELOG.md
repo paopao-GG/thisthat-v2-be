@@ -2,6 +2,53 @@
 
 All notable changes to the THISTHAT Backend project will be documented in this file.
 
+## [V1.0.2] - 2025-01-XX - Referrals & Credit Purchases
+
+### ✅ Added - Referral System
+- **Referral Codes**
+  - Optional referral codes on user signup
+  - 8-character alphanumeric codes generated automatically
+  - Awards +200 credits to referrer when new user signs up
+  - Tracks referral count and total credits earned
+- **Referral Endpoints**
+  - GET /api/v1/referrals/me - Get referral stats and recent referrals
+  - Returns referral code, count, credits earned, and list of referred users
+- **Frontend Integration**
+  - Profile page displays referral code with copy functionality
+  - Shows referral stats (count, credits earned)
+  - Displays recent referrals list
+
+### ✅ Added - Credit Purchase System
+- **Credit Packages**
+  - Starter: 500 credits ($4.99)
+  - Boost: 1,000 credits ($9.99)
+  - Pro: 2,500 credits ($19.99)
+  - Whale: 5,000 credits ($34.99)
+- **Purchase Endpoints**
+  - GET /api/v1/purchases/packages - List available credit packages
+  - POST /api/v1/purchases - Purchase credits (simulated settlement for V1)
+  - GET /api/v1/purchases/me - Get purchase history
+- **Transaction Logging**
+  - All purchases logged in credit_transactions table
+  - SHA-256 transaction signing
+  - Balance updates are atomic
+- **Frontend Integration**
+  - Purchase cards on profile page
+  - Purchase history display
+  - Real-time balance updates
+
+### 🔧 Changed
+- Daily credits job now runs at 00:00 UTC (cron schedule) with immediate run on boot for testing
+- Daily credits formula: 1000 start, +500/day up to 10,000 max (18-day streak)
+- UTC midnight reset logic implemented
+
+### 📊 Status
+- **V1 Backend:** ✅ 100% Complete (all features implemented)
+- **V1 Frontend:** ✅ ~95% Complete (core features done)
+- **Overall V1:** ✅ Production-ready
+
+---
+
 ## [V1.0.1] - 2025-01-XX - Unit Test Suite Complete
 
 ### ✅ Added - Comprehensive Unit Test Suite

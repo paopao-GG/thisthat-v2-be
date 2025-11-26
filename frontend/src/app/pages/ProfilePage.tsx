@@ -1,24 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '@shared/contexts/AuthContext';
 import type { UserStats } from '@shared/types';
 import ProfileSummaryCard from '@features/profile/components/ProfileSummaryCard';
 import WalletSection from '@features/profile/wallet/components/WalletSection';
 import PositionsTable from '@features/profile/components/PositionsTable';
 import ReferralModal from '@features/profile/components/ReferralModal';
-
-// Mock data
-const mockUserStats: UserStats = {
-  userId: '1',
-  username: 'John Doe',
-  credits: 1000,
-  totalVolume: 25000,
-  totalPnL: 4226.59,
-  rank: 45,
-  winRate: 58.3,
-  totalBets: 192,
-  dailyStreak: 7,
-  tokenAllocation: 1200,
-  lockedTokens: 1000,
-};
 
 const mockPositions: Array<{
   id: string;
@@ -45,27 +33,54 @@ const mockPositions: Array<{
 ];
 
 const ProfilePage: React.FC = () => {
+  const { user, loading, logout: logoutUser } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'positions' | 'activity'>('positions');
   const [positionFilter, setPositionFilter] = useState<'active' | 'closed'>('active');
   const [timeFilter, setTimeFilter] = useState<'1D' | '1W' | '1M' | 'ALL'>('1D');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [sliderStyle, setSliderStyle] = useState<React.CSSProperties>({});
-  const [userStats] = useState<UserStats>(() => ({
-    ...mockUserStats,
-    lastClaimDate: new Date(Date.now() - 86400000), // Yesterday
-  }));
 
-  const biggestWin = 6200000; // $6.2m
-  
-  // Generate random referral code
-  const [referralCode] = useState(() => {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  });
+  // Convert user data to UserStats format
+  const userStats: UserStats | null = user ? {
+    userId: user.id,
+    username: user.username,
+    credits: Number(user.creditBalance) || 0,
+    totalVolume: Number(user.totalVolume) || 0,
+    totalPnL: Number(user.overallPnL) || 0,
+    rank: user.rankByPnL || 0,
+    winRate: 0, // TODO: Calculate from bets
+    totalBets: 0, // TODO: Fetch from bets endpoint
+    dailyStreak: user.consecutiveDaysOnline || 0,
+    tokenAllocation: 0, // V1 doesn't have tokens
+    lockedTokens: 0, // V1 doesn't have tokens
+    lastClaimDate: null, // TODO: Fetch from daily rewards
+  } : null;
 
-  const referralLink = `https://thisthat.app/ref/${referralCode}`;
+  const referralCode = user?.referralCode || '';
+  const referralLink = referralCode ? `https://thisthat.app/ref/${referralCode}` : '';
+
+  const biggestWin = 0; // TODO: Calculate from bets
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+    } catch (error) {
+      console.error('Logout failed:', error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/', { replace: true });
+    }
+  }, [loading, user, navigate]);
 
   // Update slider position when activeTab changes
   useEffect(() => {
@@ -111,14 +126,20 @@ const ProfilePage: React.FC = () => {
   }, [activeTab]);
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(referralCode);
+    if (referralCode) {
+      navigator.clipboard.writeText(referralCode);
+    }
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(referralLink);
+    if (referralLink) {
+      navigator.clipboard.writeText(referralLink);
+    }
   };
 
   const handleShareLink = () => {
+    if (!referralLink) return;
+    
     if (navigator.share) {
       navigator.share({
         title: 'Join THIS<THAT',
@@ -130,8 +151,49 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#f5f5f5] mx-auto mb-4"></div>
+          <p className="text-[#f5f5f5]/60">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if no user
+  if (!user || !userStats) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-[#f5f5f5] text-lg mb-4">Unable to load profile</p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-[#667eea] text-white rounded-lg hover:bg-[#5568d3] transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 max-w-6xl mx-auto pb-8">
+      {/* Logout Button */}
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center gap-2 px-4 py-2 text-sm text-[#f5f5f5]/70 hover:text-[#f5f5f5] hover:bg-[#1a1a1a] rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <LogOut size={16} />
+          <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
+        </button>
+      </div>
+
       {/* Wallet Section */}
       <WalletSection
         userStats={userStats}
@@ -211,14 +273,16 @@ const ProfilePage: React.FC = () => {
 
 
       {/* Invite Friends Modal */}
-      <ReferralModal
-        isOpen={isModalOpen}
-        referralCode={referralCode}
-        referralLink={referralLink}
-        onClose={() => setIsModalOpen(false)}
-        onCopyCode={handleCopyCode}
-        onShareLink={handleShareLink}
-      />
+      {referralCode && (
+        <ReferralModal
+          isOpen={isModalOpen}
+          referralCode={referralCode}
+          referralLink={referralLink}
+          onClose={() => setIsModalOpen(false)}
+          onCopyCode={handleCopyCode}
+          onShareLink={handleShareLink}
+        />
+      )}
     </div>
   );
 };

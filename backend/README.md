@@ -5,10 +5,14 @@ Backend API for THISTHAT prediction market platform.
 ## V1 Scope
 
 - ✅ Credits-based betting (NO real money)
-- ✅ JWT authentication
+- ✅ JWT authentication (Signup/Login/Refresh/Logout)
 - ✅ Polymarket API integration (READ-ONLY)
 - ✅ Leaderboards (PnL & Volume)
-- ✅ Daily rewards system
+- ✅ Daily rewards system (PRD-aligned: 1000→1500→2000... up to 10,000)
+- ✅ Referral system (referral codes, +200 credit bonuses)
+- ✅ Credit purchase system (predefined packages)
+- ✅ Market resolution & automatic payouts
+- ✅ Transaction history
 
 ## Tech Stack
 
@@ -164,10 +168,21 @@ For complete API documentation, see **[docs/API_ENDPOINTS.md](./docs/API_ENDPOIN
 ### Leaderboard
 - GET `/api/v1/leaderboard/pnl`
 - GET `/api/v1/leaderboard/volume`
+- GET `/api/v1/leaderboard/me`
 
-### Rewards
-- POST `/api/v1/rewards/daily`
-- GET `/api/v1/rewards/history`
+### Economy
+- POST `/api/v1/economy/daily-credits`
+
+### Transactions
+- GET `/api/v1/transactions/me`
+
+### Referrals
+- GET `/api/v1/referrals/me`
+
+### Purchases
+- GET `/api/v1/purchases/packages`
+- POST `/api/v1/purchases`
+- GET `/api/v1/purchases/me`
 
 ## Database Schema
 
@@ -238,14 +253,17 @@ Opens at http://localhost:5555
 
 ## V1 Exclusions (Not Implemented)
 
-- ❌ Wallet integration
+- ❌ Wallet integration (MetaMask, WalletConnect)
 - ❌ USDC/real-money betting
-- ❌ Credit purchases
+- ❌ Real payment processing (Stripe, on-chain settlement)
 - ❌ Creator markets
-- ❌ Social features
+- ❌ Social features (friends, chat)
 - ❌ Push notifications
+- ❌ Email notifications
 
-See [backend_prd.md](../backend_prd.md) for full V1 scope.
+**Note:** Credit purchases are implemented with simulated settlement (manual provider) for V1. Real payment processing is V2.
+
+See [backend_prd.md](../docs/backend_prd.md) for full V1 scope.
 
 ## License
 
