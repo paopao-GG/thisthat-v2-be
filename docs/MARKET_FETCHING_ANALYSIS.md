@@ -186,6 +186,23 @@ return {
 
 ---
 
+## Operational Diagnostics & Scripts (2025-11-27)
+
+To debug the “no fresh markets” blockers without redeploying, a set of targeted scripts now lives under `backend/scripts/tests/`:
+
+- `npm run show:ingest-config` &nbsp;→ prints the effective `MARKET_INGEST_CRON`, limit overrides, and Polymarket endpoint/key usage so you can spot misconfigured env vars immediately.
+- `npm run test:cron` &nbsp;→ boots the actual `startMarketIngestionJob()` loop for ~15 seconds, emits `[Market Ingestion Job]` logs, and proves whether the scheduled job can talk to Polymarket in the current runtime/binary.
+- `npm run test:polymarket` &nbsp;→ performs a one-off ingestion (default limit 50), logs markets/tokens returned, estimates credit consumption, and shows how many rows were created/updated in Postgres.
+- `npm run list:markets` &nbsp;→ prints the latest `updatedAt` timestamps for the top N markets (default 25) so you can verify the database is actually growing beyond the first page the frontend requests.
+
+These scripts directly address the previously identified blockers:
+- **“Cron never fires”** → run `npm run test:cron` against the deployed bundle or container.
+- **“Need on-demand ingestion”** → use `npm run test:polymarket` while building an authenticated HTTP endpoint if required.
+- **“Silent ingestion failures”** → every script surfaces upstream errors and prints the offending payloads.
+- **“No new rows in Postgres”** → `npm run list:markets` shows exactly what the client would see once pagination/viewed caches are cleared.
+
+---
+
 ## Compliance Checklist
 
 | Requirement | New System (PostgreSQL) | Legacy System (MongoDB) |
