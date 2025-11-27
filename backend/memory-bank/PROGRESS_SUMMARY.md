@@ -66,6 +66,29 @@
 
 ## ✅ Newly Completed Features (2025-01-XX)
 
+### Category Filtering System - Complete (2025-01-XX)
+- ✅ **Real Category Fetching from Database**
+  - Added `getCategories()` function to `marketService.ts` to fetch categories from `/api/v1/markets/categories`
+  - Updated `CategoryFilterContext` to fetch real categories from API on mount
+  - Categories are capitalized for display (backend returns lowercase, frontend shows capitalized)
+  - Fallback to default categories if API fails
+- ✅ **Category Filtering on Betting Page**
+  - Fixed category filtering with case-insensitive matching
+  - Normalizes both selected category and market categories to lowercase for comparison
+  - Properly filters markets by selected category
+  - Category dropdown shows real categories from database (General, Politics, Crypto, Technology, Sports, Economics, Entertainment, Weather)
+- ✅ **Category Management & Ingestion**
+  - Updated market ingestion service to derive categories from tags/keywords when Polymarket API doesn't provide them
+  - Added category management scripts:
+    - `list-categories.ts` - Lists all categories and market counts
+    - `re-ingest-all-markets.ts` - Re-ingests all markets with updated category logic
+    - `test-polymarket-categories.ts` - Tests Polymarket API for category data
+  - All 499 markets now have categories assigned (100% coverage)
+- ✅ **API Integration**
+  - `getCategoryParam()` converts display names (e.g., "Politics") to lowercase (e.g., "politics") for API calls
+  - `handleIngestCategory()` uses normalized category names when fetching new markets
+  - Category filtering works seamlessly with backend API
+
 ### Leaderboard Page - Functional (2025-01-XX)
 - ✅ **Leaderboard Service Created**
   - Created `frontend/src/shared/services/leaderboardService.ts`
@@ -372,6 +395,13 @@
 - `src/features/sync/sync.routes.ts` - Sync routes
 - `src/jobs/market-sync.job.ts` - Market sync job (5 min intervals)
 
+**Category Management**
+- `src/services/market-ingestion.service.ts` - Updated to derive categories from tags/keywords
+- `scripts/list-categories.ts` - Lists all categories and market counts from database
+- `scripts/re-ingest-all-markets.ts` - Re-ingests all markets with updated category logic
+- `scripts/test-polymarket-categories.ts` - Tests Polymarket API for category data
+- `scripts/fix-categories.ts` - Utility script for category fixes
+
 ### Frontend Files Created
 
 **Phase 2: Authentication**
@@ -384,9 +414,10 @@
 
 **Phase 4: Betting**
 - `frontend/src/shared/services/betService.ts` - API client for betting (placeBet, getUserBets)
-- `frontend/src/shared/services/marketService.ts` - Market API client (getMarkets with MongoDB/PostgreSQL support)
+- `frontend/src/shared/services/marketService.ts` - Market API client (getMarkets with MongoDB/PostgreSQL support, getCategories)
 - `frontend/src/shared/contexts/SwipedMarketsContext.tsx` - Context for tracking swiped markets
-- Updated `frontend/src/app/pages/BettingPage.tsx` - Connected to real betting API, filters swiped markets
+- `frontend/src/shared/contexts/CategoryFilterContext.tsx` - Context for category filtering with real API data
+- Updated `frontend/src/app/pages/BettingPage.tsx` - Connected to real betting API, filters swiped markets, real category filtering
 - Updated `frontend/src/features/betting/components/SwipeableCard.tsx` - Integrated bet placement, marks markets as swiped
 - Updated `frontend/src/app/pages/ProfilePage.tsx` - Shows real bet data in Positions/Previous Activity tabs
 - Updated `frontend/src/App.tsx` - Added SwipedMarketsProvider
@@ -489,7 +520,7 @@
 ---
 
 **Last Updated:** 2025-01-XX
-**Updated By:** V1 COMPLETE - All Critical Features Implemented + Daily Reward Frontend Integration + Profile PnL & Graph Complete + Daily Reward Frontend Integration
+**Updated By:** V1 COMPLETE - All Critical Features Implemented + Daily Reward Frontend Integration + Profile PnL & Graph Complete + Category Filtering System Complete
 
 ## 🎉 Recent Achievements
 
