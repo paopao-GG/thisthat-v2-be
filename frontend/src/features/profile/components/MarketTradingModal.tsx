@@ -33,7 +33,7 @@ const MarketTradingModal: React.FC<MarketTradingModalProps> = ({
   onClose,
   onTradeSuccess,
 }) => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [marketData, setMarketData] = useState<MarketWithLiveData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +111,11 @@ const MarketTradingModal: React.FC<MarketTradingModalProps> = ({
         // Sell the position (full position - no amount needed)
         const result = await sellPosition(betId);
 
+        // Refresh user data to update credit balance
+        if (refreshUser) {
+          await refreshUser();
+        }
+
         // Notify parent to refresh data
         if (onTradeSuccess) {
           onTradeSuccess();
@@ -151,6 +156,11 @@ const MarketTradingModal: React.FC<MarketTradingModalProps> = ({
         side: tradeSide,
         amount,
       });
+
+      // Refresh user data to update credit balance
+      if (refreshUser) {
+        await refreshUser();
+      }
 
       // Reset form
       setTradeAmount('');

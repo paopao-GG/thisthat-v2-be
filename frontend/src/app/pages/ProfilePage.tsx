@@ -25,7 +25,7 @@ interface Position {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user, loading, logout: logoutUser } = useAuth();
+  const { user, loading, logout: logoutUser, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'positions' | 'activity'>('positions');
   const [positionFilter, setPositionFilter] = useState<'active' | 'closed'>('active');
@@ -344,18 +344,25 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleTradeSuccess = () => {
-    // Refresh bets after successful trade
-    if (user) {
-      getUserBets({ limit: 100 }).then((response) => {
+  const handleTradeSuccess = async () => {
+    // Refresh user data (credit balance) and bets after successful trade
+    try {
+      // Refresh user data first to update credit balance
+      if (refreshUser) {
+        await refreshUser();
+      }
+      
+      // Then refresh bets
+      if (user) {
+        const response = await getUserBets({ limit: 100 });
         const bets = response.bets || [];
         if (bets && Array.isArray(bets) && bets.length > 0) {
           setAllBets(bets);
           setActivity(bets);
         }
-      }).catch((error) => {
-        console.error('Failed to refresh bets:', error);
-      });
+      }
+    } catch (error) {
+      console.error('Failed to refresh data after trade:', error);
     }
   };
 
