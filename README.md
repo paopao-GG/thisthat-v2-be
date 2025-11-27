@@ -28,6 +28,7 @@ cd backend
 npm install
 npm run dev
 ```
+Key steps: copy `env.template` to `.env`, configure Postgres/Redis URLs, then run `npx prisma migrate dev --name init` before starting the server. See the linked Backend docs for details.
 
 ### Frontend
 ```bash
@@ -36,11 +37,14 @@ npm install
 npm run dev
 ```
 
-## 📚 Documentation
+## 🔑 Integration Resources
 
-- **Project Docs:** See `docs/` directory
-- **Backend Docs:** See `backend/docs/` directory
-- **Frontend Docs:** See `frontend/docs/` directory
+- **Backend System Overview:** `backend/docs/BACKEND_SYSTEM_OVERVIEW.md` — setup checklist, background jobs, API coverage, feature list, error handling, and DB schema snapshot.
+- **Backend API Reference:** `backend/docs/API_ENDPOINTS.md` — request/response examples for every Fastify route (auth, markets, betting, economy, leaderboards, purchases, system health).
+- **Environment Variables:** `backend/docs/ENV_FILE_CONTENT.md` — full `.env` template with explanations.
+- **Backend Quick Start:** `backend/docs/QUICK_START.md` — detailed instructions for bootstrapping Postgres, Redis, Prisma, and running the API locally.
+- **Frontend Docs:** `frontend/docs/` — React app guides and component conventions.
+- **Project Docs:** `docs/` — cross-cutting specs and planning notes.
 
 ## 🏗️ Current Status
 

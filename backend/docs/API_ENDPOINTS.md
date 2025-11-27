@@ -1,493 +1,241 @@
 # THISTHAT Backend API Endpoints
 
-**Base URL:** `http://localhost:3001`
+**Base URL (local):** `http://localhost:3001`
+
+All authenticated routes require an `Authorization: Bearer <accessToken>` header. Refresh tokens are handled via the `/api/v1/auth/refresh` endpoint.
 
 ---
 
-## 🎯 Most Important Endpoints
+## 1. Authentication & Users
 
-### 1. **Fetch Events from Polymarket** ⭐
-```
-GET /api/v1/events/fetch
-POST /api/v1/events/fetch
-```
-**Description:** Fetches events from Polymarket API and saves them to MongoDB.
+### GET `/api/v1/auth/x`
+Redirects to the X (Twitter) OAuth flow.
 
-**Query Parameters:**
-- `active` (optional): `true` or `false` - Filter active events (default: `true`)
-- `limit` (optional): Number of events to fetch (default: `100`)
+### GET `/api/v1/auth/x/callback`
+Handles the OAuth callback, exchanges the code, and redirects to the frontend with `accessToken`, `refreshToken`, and `userId` in the querystring. Set `FRONTEND_URL` to control the redirect target.
 
-**Example:**
+### POST `/api/v1/auth/refresh`
+Exchange a refresh token for a new access token.
+
 ```powershell
-# Fetch active events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/fetch?active=true&limit=50" -Method GET
-
-# Fetch all events (including closed)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/fetch?active=false&limit=100" -Method GET
+$body = @{ refreshToken = "<refresh-token>" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:3001/api/v1/auth/refresh" -Method POST -Body $body -ContentType "application/json"
 ```
 
-**Response:**
+**Response**
 ```json
-{
-  "success": true,
-  "message": "Fetched and saved 50 events",
-  "data": {
-    "saved": 50,
-    "errors": 0
-  }
-}
+{ "success": true, "accessToken": "<jwt>" }
 ```
+
+### POST `/api/v1/auth/logout`
+Revokes (deletes) a refresh token. Body: `{ "refreshToken": "..." }`.
+
+### GET `/api/v1/auth/me` _(JWT required)_
+Returns the authenticated user profile.
+
+### PATCH `/api/v1/users/me` _(JWT required)_
+Updates profile fields (display name, username, avatar, etc.). Validated via Zod (`updateUserSchema`).
+
+### GET `/api/v1/users/:userId`
+Public profile lookup by UUID.
+
+> Email/password signup & login controllers exist (`auth.controllers.ts`) and can be wired to routes when the non-OAuth flow is ready.
 
 ---
 
-### 2. **List Markets** ⭐
-```
-GET /api/v1/markets
-```
-**Description:** Retrieves markets from MongoDB database.
+## 2. Markets
 
-**Query Parameters:**
-- `status` (optional): `active` | `closed` | `archived` - Filter by status
-- `category` (optional): Category name (e.g., `politics`, `sports`)
-- `featured` (optional): `true` or `false` - Filter featured markets
-- `limit` (optional): Number of markets to return (default: `100`)
-- `skip` (optional): Number of markets to skip for pagination (default: `0`)
+### GET `/api/v1/markets`
+Returns static market data from PostgreSQL.
 
-**Example:**
+**Query params**
+- `category` – filter by category slug
+- `status` – `open`, `closed`, `resolved`
+- `limit` – default 50, max 200
+- `cursor` / `skip` – pagination strategy (see controller docs)
+
 ```powershell
-# Get all markets (default: 100)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets" -Method GET
-
-# Get active markets only
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?status=active&limit=20" -Method GET
-
-# Get featured markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?featured=true&limit=10" -Method GET
-
-# Get markets by category
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?category=politics&limit=10" -Method GET
-
-# Pagination (page 2, 10 per page)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?limit=10&skip=10" -Method GET
+Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?category=politics&limit=12" -Method GET
 ```
 
-**Response:**
+**Response (trimmed)**
 ```json
 {
   "success": true,
-  "count": 20,
+  "count": 12,
   "data": [
     {
-      "conditionId": "...",
-      "question": "Will Bitcoin reach $100k by 2025?",
+      "id": "9c6f...",
+      "polymarketId": "0xabc...",
+      "title": "Will BTC hit $100k before 2026?",
       "thisOption": "Yes",
       "thatOption": "No",
-      "thisOdds": 0.65,
-      "thatOdds": 0.35,
-      "status": "active",
+      "thisOdds": 0.62,
+      "thatOdds": 0.38,
+      "status": "open",
       "category": "crypto",
-      "volume": 125000,
-      "endDate": "2025-12-31T23:59:59Z",
-      ...
+      "expiresAt": "2025-12-31T23:59:59.000Z"
     }
   ]
 }
 ```
 
+### GET `/api/v1/markets/random`
+Returns a curated/random set for discovery cards.
+
+### GET `/api/v1/markets/categories`
+Lists distinct categories derived during ingestion.
+
+### GET `/api/v1/markets/category/:category`
+Shortcut for filtering by category slug.
+
+### GET `/api/v1/markets/:id`
+Static market payload from PostgreSQL only.
+
+### GET `/api/v1/markets/:id/live`
+Live odds pulled directly from Polymarket via `polymarket-client`. Useful when you only need odds without the static data.
+
+### GET `/api/v1/markets/:id/full`
+Combines the static DB document with the live odds call so the frontend makes one request.
+
+### POST `/api/v1/markets/ingest`
+Manually trigger the Polymarket ingestion pipeline. Primarily used for diagnostics or manual refresh; the cron worker runs automatically (see `startMarketIngestionJob`). Body optional; respects env vars such as `MARKET_INGEST_LIMIT`.
+
 ---
 
-## 📋 All API Endpoints
+## 3. Betting
 
-### Health & System
+### POST `/api/v1/bets` _(JWT)_
+Place a THIS/THAT bet.
 
-#### Health Check
-```
-GET /health
-```
-**Description:** Check if server is running.
-
-**Example:**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3001/health" -Method GET
-```
-
-**Response:**
 ```json
 {
-  "status": "ok",
-  "timestamp": "2025-01-XXT12:00:00.000Z"
+  "marketId": "9c6f...",
+  "side": "this",
+  "amount": 500
 }
 ```
 
+The service calculates potential payout, locks credits, and records a `CreditTransaction`.
+
+### GET `/api/v1/bets/me` _(JWT)_
+Paginated bet history for the current user.
+
+### GET `/api/v1/bets/:betId` _(JWT)_
+Single bet detail.
+
+### POST `/api/v1/bets/:betId/sell` _(JWT)_
+Early exit from a position. The request body contains `{ "amount": 250 }` (credits to sell) and returns the resulting payout.
+
 ---
 
-#### Hello Endpoint
-```
-GET /api/hello
-```
-**Description:** Test endpoint.
+## 4. Economy & Credits
 
-**Example:**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3001/api/hello" -Method GET
-```
+### POST `/api/v1/economy/daily-credits` _(JWT)_
+Claims the daily login reward immediately (scheduler also runs nightly). Returns the updated balance and streak info.
 
-**Response:**
+### POST `/api/v1/economy/buy` _(JWT)_
+Buy synthetic stocks that power the in-app economy. Body includes `{ "stockId": "...", "shares": 10, "leverage": 1 }`.
+
+### POST `/api/v1/economy/sell` _(JWT)_
+Close a stock position.
+
+### GET `/api/v1/economy/portfolio` _(JWT)_
+Aggregates holdings, unrealized PnL, and credit balances.
+
+### GET `/api/v1/economy/stocks`
+Public endpoint listing available stocks with metadata (price, supply, leverage caps).
+
+---
+
+## 5. Leaderboards & Social
+
+### GET `/api/v1/leaderboard/pnl`
+Global top users by overall PnL (public).
+
+### GET `/api/v1/leaderboard/volume`
+Global ranking by total trading volume (public).
+
+### GET `/api/v1/leaderboard/me` _(JWT)_
+Returns the authenticated user’s ranks plus snapshots of surrounding users for context.
+
+### GET `/api/v1/referrals/me` _(JWT)_
+Referral stats: invite code, number of signups, credits awarded.
+
+---
+
+## 6. Transactions & Purchases
+
+### GET `/api/v1/transactions/me` _(JWT)_
+Paginated credit transaction ledger (daily rewards, bets, payouts, purchases, referrals).
+
+### GET `/api/v1/purchases/packages`
+Public list of purchasable credit bundles.
+
+### POST `/api/v1/purchases` _(JWT)_
+Simulate a credit purchase. Body:
 ```json
 {
-  "message": "Hello from TypeScript Fastify!"
+  "packageId": "starter",
+  "provider": "manual",
+  "externalId": "order_123"
 }
 ```
+Creates a `CreditPurchase` row and applies credits.
+
+### GET `/api/v1/purchases/me` _(JWT)_
+Purchase history for the authenticated user.
 
 ---
 
-### Markets Endpoints
+## 7. System & Diagnostics
 
-#### 1. Fetch Markets from Polymarket
-```
-GET /api/v1/markets/fetch
-POST /api/v1/markets/fetch
-```
-**Description:** Fetches markets from Polymarket API and saves them to MongoDB.
-
-**Query Parameters:**
-- `active` (optional): `true` or `false` - Filter active markets (default: `true`)
-- `limit` (optional): Number of markets to fetch (default: `100`)
-
-**Example:**
-```powershell
-# Fetch active markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets/fetch?active=true&limit=100" -Method GET
-
-# Fetch all markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets/fetch?active=false&limit=500" -Method GET
-```
-
-**Response:**
+### GET `/health`
+Simple JSON health check:
 ```json
-{
-  "success": true,
-  "message": "Fetched and saved 100 markets",
-  "data": {
-    "saved": 100,
-    "errors": 0
-  }
-}
+{ "status": "ok", "timestamp": "2025-11-27T14:05:12.345Z" }
 ```
+
+### GET `/api/hello`
+“Hello from TypeScript Fastify!” message, useful for quick smoke tests.
 
 ---
 
-#### 2. List Markets (from Database)
-```
-GET /api/v1/markets
-```
-**Description:** Retrieves markets from MongoDB database.
+## 8. Error & Response Shapes
 
-**Query Parameters:**
-- `status` (optional): `active` | `closed` | `archived`
-- `category` (optional): Category name
-- `featured` (optional): `true` | `false`
-- `limit` (optional): Number of results (default: `100`)
-- `skip` (optional): Pagination offset (default: `0`)
-
-**Example:**
-```powershell
-# Get all markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets" -Method GET
-
-# Get active markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?status=active&limit=20" -Method GET
-
-# Get featured markets
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?featured=true" -Method GET
-
-# Get markets by category
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?category=sports" -Method GET
-
-# Pagination
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?limit=10&skip=0" -Method GET
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "count": 20,
-  "data": [
-    {
-      "conditionId": "0x...",
-      "question": "Will X happen?",
-      "thisOption": "Yes",
-      "thatOption": "No",
-      "thisOdds": 0.65,
-      "thatOdds": 0.35,
-      "status": "active",
-      "category": "politics",
-      "volume": 50000,
-      "endDate": "2025-12-31T23:59:59Z",
-      "featured": false,
-      ...
-    }
-  ]
-}
-```
-
----
-
-#### 3. Get Market Statistics
-```
-GET /api/v1/markets/stats
-```
-**Description:** Returns statistics about markets in the database.
-
-**Example:**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets/stats" -Method GET
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "totalMarkets": 947,
-    "activeMarkets": 823,
-    "closedMarkets": 98,
-    "archivedMarkets": 26,
-    "featuredMarkets": 45,
-    "categoryCounts": {
-      "politics": 234,
-      "sports": 189,
-      "crypto": 156,
-      ...
-    }
-  }
-}
-```
-
----
-
-### Events Endpoints
-
-#### 1. Fetch Events from Polymarket ⭐
-```
-GET /api/v1/events/fetch
-POST /api/v1/events/fetch
-```
-**Description:** Fetches events from Polymarket API and saves them to MongoDB.
-
-**Query Parameters:**
-- `active` (optional): `true` or `false` - Filter active events (default: `true`)
-- `limit` (optional): Number of events to fetch (default: `100`)
-
-**Example:**
-```powershell
-# Fetch active events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/fetch?active=true&limit=50" -Method GET
-
-# Fetch all events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/fetch?active=false&limit=100" -Method GET
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Fetched and saved 50 events",
-  "data": {
-    "saved": 50,
-    "errors": 0
-  }
-}
-```
-
----
-
-#### 2. List Events (from Database)
-```
-GET /api/v1/events
-```
-**Description:** Retrieves events from MongoDB database.
-
-**Query Parameters:**
-- `status` (optional): `active` | `closed` | `archived`
-- `category` (optional): Category name
-- `featured` (optional): `true` | `false`
-- `limit` (optional): Number of results (default: `100`)
-- `skip` (optional): Pagination offset (default: `0`)
-
-**Example:**
-```powershell
-# Get all events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events" -Method GET
-
-# Get active events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events?status=active&limit=20" -Method GET
-
-# Get featured events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events?featured=true" -Method GET
-
-# Get events by category
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events?category=politics" -Method GET
-
-# Pagination
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events?limit=10&skip=0" -Method GET
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "count": 20,
-  "data": [
-    {
-      "eventId": "...",
-      "title": "2024 US Presidential Election",
-      "subtitle": "Who will win?",
-      "status": "active",
-      "category": "politics",
-      "featured": true,
-      "startDate": "2024-11-05T00:00:00Z",
-      "endDate": "2024-11-06T00:00:00Z",
-      "volume": 5000000,
-      ...
-    }
-  ]
-}
-```
-
----
-
-#### 3. Get Event Statistics
-```
-GET /api/v1/events/stats
-```
-**Description:** Returns statistics about events in the database.
-
-**Example:**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/stats" -Method GET
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "totalEvents": 150,
-    "activeEvents": 120,
-    "closedEvents": 25,
-    "archivedEvents": 5,
-    "featuredEvents": 30,
-    "categoryCounts": {
-      "politics": 45,
-      "sports": 35,
-      "crypto": 28,
-      ...
-    }
-  }
-}
-```
-
----
-
-## 🔧 Common Use Cases
-
-### Use Case 1: Initial Data Fetch
-```powershell
-# 1. Fetch events from Polymarket
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/fetch?active=true&limit=100" -Method GET
-
-# 2. Fetch markets from Polymarket
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets/fetch?active=true&limit=100" -Method GET
-
-# 3. Verify data was saved
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events/stats" -Method GET
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets/stats" -Method GET
-```
-
-### Use Case 2: Display Active Markets
-```powershell
-# Get active markets for display
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?status=active&limit=20" -Method GET
-```
-
-### Use Case 3: Display Featured Events
-```powershell
-# Get featured events
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/events?featured=true&limit=10" -Method GET
-```
-
-### Use Case 4: Pagination
-```powershell
-# Page 1 (first 10)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?limit=10&skip=0" -Method GET
-
-# Page 2 (next 10)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?limit=10&skip=10" -Method GET
-
-# Page 3 (next 10)
-Invoke-RestMethod -Uri "http://localhost:3001/api/v1/markets?limit=10&skip=20" -Method GET
-```
-
----
-
-## 📝 Response Format
-
-All endpoints return JSON with the following structure:
-
-**Success Response:**
+Successful responses follow:
 ```json
 {
   "success": true,
   "data": { ... },
-  "count": 10,  // For list endpoints
-  "message": "..."  // For action endpoints
+  "count": 25,          // present on list endpoints
+  "message": "Optional" // present on action endpoints
 }
 ```
 
-**Error Response:**
+Errors bubble through the Fastify error handler:
 ```json
 {
   "success": false,
-  "error": "Error message",
-  "details": "Detailed error information"
+  "error": "User not found",
+  "details": [ ... ]    // Validation errors only
 }
 ```
 
----
-
-## ⚠️ Important Notes
-
-1. **Server Must Be Running:** All endpoints require the backend server to be running (`npm run dev`)
-
-2. **MongoDB Must Be Running:** Fetch and list endpoints require MongoDB to be running
-
-3. **Fetch vs List:**
-   - **Fetch endpoints** (`/fetch`): Get data from Polymarket API and save to database
-   - **List endpoints** (`/`): Get data from your MongoDB database
-
-4. **Rate Limiting:** Currently no rate limiting, but be mindful when fetching large amounts of data
-
-5. **Pagination:** Use `limit` and `skip` for pagination:
-   - `limit`: Number of results per page
-   - `skip`: Number of results to skip (for page 2, skip = limit)
+Known status codes:
+- `400` – Zod validation failure / missing parameters.
+- `401` – Missing or invalid JWT / refresh token.
+- `409` – Conflicts (duplicate username/email, double-claim of rewards).
+- `500` – Unhandled server error (see server logs for details).
 
 ---
 
-## 🚀 Quick Reference
+## 9. Useful Tips
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check |
-| `/api/v1/markets/fetch` | GET/POST | Fetch markets from Polymarket |
-| `/api/v1/markets` | GET | List markets from database |
-| `/api/v1/markets/stats` | GET | Get market statistics |
-| `/api/v1/events/fetch` | GET/POST | Fetch events from Polymarket |
-| `/api/v1/events` | GET | List events from database |
-| `/api/v1/events/stats` | GET | Get event statistics |
+- **Auth tokens** – Access tokens are short-lived; always implement refresh logic using `/api/v1/auth/refresh`. Refresh tokens should be stored securely (httpOnly cookie or secure storage).
+- **Background data freshness** – Markets stay fresh thanks to the cron worker plus live odds endpoints. If you need an immediate refresh (e.g., staging demo), hit `POST /api/v1/markets/ingest`.
+- **Pagination** – Most list endpoints accept `limit` plus either `skip` or `cursor`. Check the controller implementation for details when wiring infinite scroll.
+- **Idempotency** – Credit-impacting routes (bets, economy, purchases) run inside Prisma transactions to keep balances consistent. Retrying a failed request is safe—duplicate protection is enforced via IDs and transaction hashes.
 
----
-
-**Last Updated:** 2025-01-XX
+Keep this document updated when new routes ship so the frontend has an accurate contract.
 

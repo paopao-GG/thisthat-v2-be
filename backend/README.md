@@ -145,25 +145,36 @@ See **[scripts/README.md](./scripts/README.md)** for PowerShell and Node.js util
 
 ## API Endpoints (V1)
 
-For complete API documentation, see **[docs/API_ENDPOINTS.md](./docs/API_ENDPOINTS.md)**.
+For request/response details see **[docs/API_ENDPOINTS.md](./docs/API_ENDPOINTS.md)** or the high-level **[docs/BACKEND_SYSTEM_OVERVIEW.md](./docs/BACKEND_SYSTEM_OVERVIEW.md)**.
 
 ### Authentication
-- POST `/api/v1/auth/register`
-- POST `/api/v1/auth/login`
-- POST `/api/v1/auth/refresh`
-- POST `/api/v1/auth/logout`
+- GET `/api/v1/auth/x` – Kick off the X (Twitter) OAuth flow.
+- GET `/api/v1/auth/x/callback` – OAuth callback that redirects to the frontend with JWTs.
+- POST `/api/v1/auth/refresh` – Exchange a refresh token for a new access token.
+- POST `/api/v1/auth/logout` – Revoke a refresh token.
+- GET `/api/v1/auth/me` – Return the authenticated user profile.
+
+> Email/password signup & login handlers exist but are not wired to routes yet. Wire them through `auth.routes.ts` when enabling that flow.
 
 ### Users
-- GET `/api/v1/users/me`
-- PATCH `/api/v1/users/me`
+- PATCH `/api/v1/users/me` – Update profile (requires JWT).
+- GET `/api/v1/users/:userId` – Public profile lookup.
 
 ### Markets
-- GET `/api/v1/markets`
-- GET `/api/v1/markets/:id`
+- GET `/api/v1/markets` – List markets with filtering/pagination.
+- GET `/api/v1/markets/random` – Random discovery set.
+- GET `/api/v1/markets/categories` – Available categories.
+- GET `/api/v1/markets/category/:category` – Filter by category slug.
+- GET `/api/v1/markets/:id` – Static market payload.
+- GET `/api/v1/markets/:id/live` – Live odds direct from Polymarket.
+- GET `/api/v1/markets/:id/full` – Static + live bundle.
+- POST `/api/v1/markets/ingest` – Manually trigger Polymarket ingestion.
 
 ### Betting
-- POST `/api/v1/bets`
-- GET `/api/v1/bets/me`
+- POST `/api/v1/bets` – Place a bet.
+- GET `/api/v1/bets/me` – Current user’s bets.
+- GET `/api/v1/bets/:betId` – Detailed bet view.
+- POST `/api/v1/bets/:betId/sell` – Sell back an open bet (secondary market).
 
 ### Leaderboard
 - GET `/api/v1/leaderboard/pnl`
@@ -171,7 +182,11 @@ For complete API documentation, see **[docs/API_ENDPOINTS.md](./docs/API_ENDPOIN
 - GET `/api/v1/leaderboard/me`
 
 ### Economy
-- POST `/api/v1/economy/daily-credits`
+- POST `/api/v1/economy/daily-credits` – Claim reward manually.
+- POST `/api/v1/economy/buy` – Buy virtual stocks.
+- POST `/api/v1/economy/sell` – Sell holdings.
+- GET `/api/v1/economy/portfolio` – Authenticated user holdings.
+- GET `/api/v1/economy/stocks` – Public stock catalog.
 
 ### Transactions
 - GET `/api/v1/transactions/me`
@@ -224,12 +239,13 @@ Opens at http://localhost:5555
 
 ## Documentation
 
-- **[Getting Started](./docs/QUICK_START.md)** - Quick start guide
-- **[Running the Server](./docs/RUN_SERVER.md)** - Server setup and troubleshooting
-- **[API Endpoints](./docs/API_ENDPOINTS.md)** - Complete API reference
-- **[Testing Guide](./docs/UNIT_TESTING_GUIDE.md)** - Unit testing documentation
-- **[Test Coverage](./docs/TEST_COVERAGE_SUMMARY.md)** - Current test coverage
-- **[Project Roadmap](./memory-bank/backend_roadmap.md)** - Development roadmap
+- **[Backend Overview](./docs/BACKEND_SYSTEM_OVERVIEW.md)** – Setup, APIs, features, jobs, and schema overview.
+- **[Quick Start](./docs/QUICK_START.md)** – Step-by-step environment/bootstrap instructions.
+- **[Run Server](./docs/RUN_SERVER.md)** – Dev/prod server commands & troubleshooting.
+- **[API Endpoints](./docs/API_ENDPOINTS.md)** – Full endpoint reference with examples.
+- **[Env Vars](./docs/ENV_FILE_CONTENT.md)** – Environment configuration details.
+- **[Testing Quick Start](./docs/TESTING_QUICK_START.md)** – Running Vitest, coverage, and linting instructions.
+- **[Project Roadmap](./memory-bank/backend_roadmap.md)** – Historical planning context.
 
 ## Troubleshooting
 
