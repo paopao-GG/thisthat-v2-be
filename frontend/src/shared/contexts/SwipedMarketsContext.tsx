@@ -9,6 +9,7 @@ import { useAuth } from './AuthContext';
 interface SwipedMarketsContextType {
   swipedMarketIds: Set<string>;
   markMarketAsSwiped: (marketId: string) => void;
+  unmarkMarketAsSwiped: (marketId: string) => void;
   isMarketSwiped: (marketId: string) => boolean;
   clearSwipedMarkets: () => void;
 }
@@ -60,6 +61,17 @@ export function SwipedMarketsProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const unmarkMarketAsSwiped = (marketId: string) => {
+    setSwipedMarketIds((prev) => {
+      if (!prev.has(marketId)) {
+        return prev;
+      }
+      const newSet = new Set(prev);
+      newSet.delete(marketId);
+      return newSet;
+    });
+  };
+
   const isMarketSwiped = (marketId: string) => {
     return swipedMarketIds.has(marketId);
   };
@@ -76,6 +88,7 @@ export function SwipedMarketsProvider({ children }: { children: ReactNode }) {
       value={{
         swipedMarketIds,
         markMarketAsSwiped,
+        unmarkMarketAsSwiped,
         isMarketSwiped,
         clearSwipedMarkets,
       }}
@@ -92,4 +105,7 @@ export function useSwipedMarkets() {
   }
   return context;
 }
+
+
+
 

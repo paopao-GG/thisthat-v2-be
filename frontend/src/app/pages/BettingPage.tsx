@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import SwipeableCard from '@features/betting/components/SwipeableCard';
 import CategoryFilter from '@shared/components/CategoryFilter';
 import { useCategoryFilter } from '@shared/contexts/CategoryFilterContext';
@@ -8,6 +8,9 @@ import type { Market } from '@shared/types';
 import { getMarkets } from '@shared/services/marketService';
 import { getImageUrlForMarket, getImageUrlForOption } from '@shared/utils/imageFetcher';
 import '@/styles/betting/style.css';
+
+const PAGE_SIZE = 50;
+const VIEWED_STORAGE_PREFIX = 'viewedMarkets_';
 
 // Mock data - images will be fetched dynamically
 const mockMarketsBase: Omit<Market, 'imageUrl' | 'thisImageUrl' | 'thatImageUrl'>[] = [
@@ -130,57 +133,110 @@ const mockMarketsBase: Omit<Market, 'imageUrl' | 'thisImageUrl' | 'thatImageUrl'
   },
 ];
 
-// Internal component that manages card state - keyed by category to reset on change
-const CardStack: React.FC<{
+interface CardStackProps {
   markets: Market[];
   maxCredits?: number;
   defaultBetAmount: number;
   onBetPlaced?: () => void;
-}> = ({ markets: filteredMarkets, maxCredits, defaultBetAmount, onBetPlaced }) => {
-  const [currentMarketIndex, setCurrentMarketIndex] = useState(0);
-  const [swipedCards, setSwipedCards] = useState<Set<number>>(new Set());
+  onMarkViewed: (marketId: string) => void;
+  onRestoreViewed: (marketId: string) => void;
+}
 
-  const handleSwipeLeft = async (index: number) => {
-    // Swipe left = THIS option - bet is placed automatically in SwipeableCard
-    // Just advance to next card after bet is placed
-    console.log(`Selected THIS for market ${filteredMarkets[index].id}`);
-    setSwipedCards((prev) => new Set([...prev, index]));
+const CardStack: React.FC<CardStackProps> = ({
+  markets: filteredMarkets,
+  maxCredits,
+  defaultBetAmount,
+  onBetPlaced,
+  onMarkViewed,
+  onRestoreViewed,
+}) => {
+  const [currentMarketIndex, setCurrentMarketIndex] = useState(0);
+  const [viewHistory, setViewHistory] = useState<string[]>([]);
+  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null);
+
+  const clampIndex = useCallback(
+    (nextIndex: number) => {
+      if (filteredMarkets.length === 0) {
+        return 0;
+      }
+      const safeIndex = ((nextIndex % filteredMarkets.length) + filteredMarkets.length) % filteredMarkets.length;
+      return safeIndex;
+    },
+    [filteredMarkets.length]
+  );
+
+  useEffect(() => {
+    setCurrentMarketIndex((prev) => clampIndex(prev));
+  }, [filteredMarkets.length, clampIndex]);
+
+  useEffect(() => {
+    setViewHistory((prev) => prev.filter((id) => filteredMarkets.some((market) => market.id === id)));
+  }, [filteredMarkets]);
+
+  useEffect(() => {
+    if (!pendingRestoreId) return;
+    const targetIndex = filteredMarkets.findIndex((m) => m.id === pendingRestoreId);
+    if (targetIndex !== -1) {
+      setCurrentMarketIndex(targetIndex);
+      setPendingRestoreId(null);
+    }
+  }, [filteredMarkets, pendingRestoreId]);
+
+  const advanceAfterRemoval = useCallback(() => {
+    if (filteredMarkets.length <= 1) {
+      setCurrentMarketIndex(0);
+      return;
+    }
+    setCurrentMarketIndex((prev) => clampIndex(prev));
+  }, [filteredMarkets.length, clampIndex]);
+
+  const handleSwipeLeft = (marketIndex: number) => {
+    console.log(`Selected THIS for market ${filteredMarkets[marketIndex].id}`);
+    advanceAfterRemoval();
   };
 
-  const handleSwipeRight = async (index: number) => {
-    // Swipe right = THAT option - bet is placed automatically in SwipeableCard
-    // Just advance to next card after bet is placed
-    console.log(`Selected THAT for market ${filteredMarkets[index].id}`);
-    setSwipedCards((prev) => new Set([...prev, index]));
+  const handleSwipeRight = (marketIndex: number) => {
+    console.log(`Selected THAT for market ${filteredMarkets[marketIndex].id}`);
+    advanceAfterRemoval();
   };
 
   const handleSwipeUp = () => {
-    // Swipe up = skip to next card
-    setCurrentMarketIndex((prev) => (prev + 1) % filteredMarkets.length);
+    if (filteredMarkets.length === 0) return;
+    const currentMarket = filteredMarkets[currentMarketIndex];
+    setViewHistory((prev) => [...prev, currentMarket.id]);
+    onMarkViewed(currentMarket.id);
+    setCurrentMarketIndex((prev) =>
+      filteredMarkets.length <= 1 ? 0 : clampIndex(prev + 1)
+    );
   };
 
   const handleSwipeDown = () => {
-    // Swipe down = go to previous card
-    setCurrentMarketIndex((prev) => (prev - 1 + filteredMarkets.length) % filteredMarkets.length);
+    setViewHistory((prev) => {
+      if (prev.length === 0) {
+        return prev;
+      }
+      const copy = [...prev];
+      const lastId = copy.pop();
+      if (lastId) {
+        onRestoreViewed(lastId);
+        setPendingRestoreId(lastId);
+      }
+      return copy;
+    });
   };
 
-  // Show up to 3 cards in the stack
   const visibleCards = [];
   for (let i = 0; i < Math.min(3, filteredMarkets.length); i++) {
-    const cardIndex = (currentMarketIndex + i) % filteredMarkets.length;
-    if (!swipedCards.has(cardIndex)) {
-      visibleCards.push({
-        index: i,
-        marketIndex: cardIndex,
-        market: filteredMarkets[cardIndex],
-      });
-    }
+    const marketIndex = (currentMarketIndex + i) % filteredMarkets.length;
+    visibleCards.push({
+      index: i,
+      marketIndex,
+      market: filteredMarkets[marketIndex],
+    });
   }
 
   return (
-    <div 
-      className="relative w-full max-w-lg mx-auto betting-card-stack" 
-    >
+    <div className="relative w-full max-w-lg mx-auto betting-card-stack">
       {visibleCards.map(({ index, marketIndex, market }) => (
         <SwipeableCard
           key={market.id}
@@ -207,7 +263,19 @@ const BettingPage: React.FC = () => {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [hasMoreMarkets, setHasMoreMarkets] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const activeCategoryRef = useRef(categoryFilter);
+  const fetchControllerRef = useRef(0);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [viewedMarketIds, setViewedMarketIds] = useState<Set<string>>(new Set());
   
+  const getCategoryParam = useCallback(
+    (category: string) => (category === 'All' ? undefined : category),
+    []
+  );
+
   // Load default bet amount from localStorage, default to 100 if not set
   const [defaultBetAmount, setDefaultBetAmount] = useState(() => {
     try {
@@ -227,8 +295,78 @@ const BettingPage: React.FC = () => {
     }
   }, [defaultBetAmount]);
 
+  useEffect(() => {
+    activeCategoryRef.current = categoryFilter;
+  }, [categoryFilter]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setViewedMarketIds(new Set());
+      return;
+    }
+    const storageKey = `${VIEWED_STORAGE_PREFIX}${user.id}`;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const ids = JSON.parse(stored) as string[];
+        setViewedMarketIds(new Set(ids));
+      } else {
+        setViewedMarketIds(new Set());
+      }
+    } catch (error) {
+      console.error('Failed to load viewed markets:', error);
+    }
+  }, [user?.id]);
+
+  const persistViewedSet = useCallback(
+    (nextSet: Set<string>) => {
+      if (!user?.id) return;
+      const storageKey = `${VIEWED_STORAGE_PREFIX}${user.id}`;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(nextSet)));
+      } catch (error) {
+        console.error('Failed to persist viewed markets:', error);
+      }
+    },
+    [user?.id]
+  );
+
+  const markMarketAsViewed = useCallback(
+    (marketId: string) => {
+      setViewedMarketIds((prev) => {
+        if (prev.has(marketId)) return prev;
+        const next = new Set(prev);
+        next.add(marketId);
+        persistViewedSet(next);
+        return next;
+      });
+    },
+    [persistViewedSet]
+  );
+
+  const unmarkMarketAsViewed = useCallback(
+    (marketId: string) => {
+      setViewedMarketIds((prev) => {
+        if (!prev.has(marketId)) return prev;
+        const next = new Set(prev);
+        next.delete(marketId);
+        persistViewedSet(next);
+        return next;
+      });
+    },
+    [persistViewedSet]
+  );
+
+  const clearViewedMarkets = useCallback(() => {
+    setViewedMarketIds(() => {
+      const next = new Set<string>();
+      persistViewedSet(next);
+      return next;
+    });
+  }, [persistViewedSet]);
+
   // Helper function to add images to markets
-  const addImagesToMarkets = (marketsToProcess: Market[]): Market[] => {
+  const addImagesToMarkets = useCallback((marketsToProcess: Market[]): Market[] => {
     return marketsToProcess.map((market) => {
       if (market.marketType === 'two-image') {
         return {
@@ -236,72 +374,185 @@ const BettingPage: React.FC = () => {
           thisImageUrl: getImageUrlForOption(market.thisOption, market.category),
           thatImageUrl: getImageUrlForOption(market.thatOption, market.category),
         };
-      } else {
-        return {
-          ...market,
-          imageUrl: getImageUrlForMarket(market),
-        };
       }
+      return {
+        ...market,
+        imageUrl: getImageUrlForMarket(market),
+      };
     });
-  };
+  }, []);
 
-  // Fetch markets from backend
-  useEffect(() => {
-    const fetchMarkets = async () => {
-      try {
+  const fetchMarketsBatch = useCallback(
+    async (categoryParam?: string, skipParam: number = 0) => {
+      const fetchedMarkets = await getMarkets({
+        status: 'open',
+        limit: PAGE_SIZE,
+        skip: skipParam,
+        ...(categoryParam ? { category: categoryParam } : {}),
+      });
+      return addImagesToMarkets(fetchedMarkets);
+    },
+    [addImagesToMarkets]
+  );
+
+  const loadMarkets = useCallback(
+    async (options?: { showGlobalLoading?: boolean; category?: string }) => {
+      const { showGlobalLoading = false, category } = options || {};
+      const categoryParam = category ?? getCategoryParam(categoryFilter);
+      const fetchId = ++fetchControllerRef.current;
+
+      if (showGlobalLoading) {
         setLoading(true);
+      } else {
+        setManualRefreshing(true);
+      }
+
+      try {
         setError(null);
-        console.log('Fetching markets from backend...');
-        
-        const fetchedMarkets = await getMarkets({
-          status: 'open', // Use 'open' for PostgreSQL, which maps to 'active' for MongoDB
-          limit: 100,
-        });
-        
-        console.log(`Fetched ${fetchedMarkets.length} markets from backend`);
-        
-        // Add images to markets
-        const marketsWithImages = addImagesToMarkets(fetchedMarkets);
-        
-        // If no markets fetched, fall back to mock data
+        const marketsWithImages = await fetchMarketsBatch(categoryParam, 0);
+
+        if (fetchId !== fetchControllerRef.current) {
+          return;
+        }
+
+        setHasMoreMarkets(true);
+        setIsFetchingMore(false);
+
         if (marketsWithImages.length === 0) {
           console.warn('No markets fetched from backend, using mock data');
           const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
           setMarkets(mockMarketsWithImages);
+          setHasMoreMarkets(false);
+          setSkip(mockMarketsWithImages.length);
         } else {
-          console.log(`Setting ${marketsWithImages.length} markets`);
           setMarkets(marketsWithImages);
+          setSkip(marketsWithImages.length);
+          setHasMoreMarkets(marketsWithImages.length === PAGE_SIZE);
         }
       } catch (err: any) {
+        if (fetchId !== fetchControllerRef.current) {
+          return;
+        }
         console.error('Failed to fetch markets:', err);
         setError(err.message || 'Failed to load markets');
-        // Always fall back to mock data on error so user can still see markets
-        console.log('Falling back to mock data due to error');
         const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
         setMarkets(mockMarketsWithImages);
+        setHasMoreMarkets(false);
+        setSkip(mockMarketsWithImages.length);
       } finally {
-        setLoading(false);
+        if (fetchId === fetchControllerRef.current) {
+          if (showGlobalLoading) {
+            setLoading(false);
+          } else {
+            setManualRefreshing(false);
+          }
+        }
       }
-    };
+    },
+    [addImagesToMarkets, fetchMarketsBatch, categoryFilter, getCategoryParam]
+  );
 
-    fetchMarkets();
-  }, []);
-  
+  // Initial load & when category changes (even though currently disregarded)
+  useEffect(() => {
+    loadMarkets({ showGlobalLoading: true });
+  }, [categoryFilter, loadMarkets]);
+
+  const handleManualRefresh = useCallback(() => {
+    loadMarkets({ showGlobalLoading: false });
+  }, [loadMarkets]);
+
+  useEffect(() => {
+    const intervalMs = Number(import.meta.env.VITE_MARKET_REFRESH_INTERVAL_MS || 60000);
+    const intervalId = window.setInterval(() => {
+      loadMarkets({ showGlobalLoading: false });
+    }, intervalMs);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loadMarkets]);
+
+  const fetchMoreMarkets = useCallback(async () => {
+    if (isFetchingMore || loading || !hasMoreMarkets) return;
+    const categoryKey = categoryFilter;
+    const categoryParam = getCategoryParam(categoryFilter);
+    setIsFetchingMore(true);
+
+    try {
+      const nextBatch = await fetchMarketsBatch(categoryParam, skip);
+
+      // Prevent state updates if category changed mid-fetch
+      if (activeCategoryRef.current !== categoryKey) {
+        return;
+      }
+
+      if (nextBatch.length === 0) {
+        setHasMoreMarkets(false);
+        return;
+      }
+
+      setMarkets((prev) => {
+        if (prev.length === 0) {
+          return nextBatch;
+        }
+
+        const existingIds = new Set(prev.map((market) => market.id));
+        const merged = [...prev];
+
+        nextBatch.forEach((market) => {
+          if (!existingIds.has(market.id)) {
+            merged.push(market);
+          }
+        });
+
+        return merged;
+      });
+      setSkip((prev) => prev + nextBatch.length);
+
+      if (nextBatch.length < PAGE_SIZE) {
+        setHasMoreMarkets(false);
+      }
+    } catch (err: any) {
+      console.error('Failed to load more markets:', err);
+      setError(err.message || 'Failed to load more markets');
+      setHasMoreMarkets(false);
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [categoryFilter, fetchMarketsBatch, getCategoryParam, hasMoreMarkets, isFetchingMore, loading, skip]);
+
   const { isMarketSwiped } = useSwipedMarkets();
 
-  // Filter markets by category and exclude swiped markets
+  // Filter markets by category and exclude swiped/viewed markets
   const filteredMarkets = useMemo(() => {
     if (markets.length === 0) return [];
-    
-    // First filter by category
-    let categoryFiltered = markets;
+
+    let next = markets;
     if (categoryFilter !== 'All') {
-      categoryFiltered = markets.filter(market => market.category === categoryFilter);
+      next = next.filter(
+        (market) => (market.category || 'Other') === categoryFilter
+      );
     }
-    
-    // Then filter out swiped markets
-    return categoryFiltered.filter(market => !isMarketSwiped(market.id));
-  }, [categoryFilter, markets, isMarketSwiped]);
+
+    next = next.filter((market) => !isMarketSwiped(market.id));
+    next = next.filter((market) => !viewedMarketIds.has(market.id));
+
+    return next;
+  }, [categoryFilter, markets, isMarketSwiped, viewedMarketIds]);
+
+  // Auto-load more when user has swiped everything we have locally
+  useEffect(() => {
+    if (
+      loading ||
+      isFetchingMore ||
+      !hasMoreMarkets ||
+      markets.length === 0 ||
+      filteredMarkets.length > 0
+    ) {
+      return;
+    }
+
+    fetchMoreMarkets();
+  }, [fetchMoreMarkets, filteredMarkets.length, hasMoreMarkets, isFetchingMore, loading, markets.length]);
 
   // Handle bet placed - refresh user credits
   const handleBetPlaced = async () => {
@@ -356,9 +607,30 @@ const BettingPage: React.FC = () => {
             onCategoryChange={setCategoryFilter}
           />
         </div>
-        <div className="flex flex-col items-center justify-center flex-1">
-          <div className="text-white/60">No markets found in this category.</div>
-          <div className="text-white/40 text-sm mt-2">Try selecting a different category.</div>
+        <div className="flex flex-col items-center justify-center flex-1 gap-2">
+          {isFetchingMore && hasMoreMarkets ? (
+            <>
+              <div className="text-white/60">Loading more markets...</div>
+              <div className="text-white/40 text-sm">Hang tight while we pull fresh markets.</div>
+            </>
+          ) : viewedMarketIds.size > 0 ? (
+            <>
+              <div className="text-white/60 text-center">
+                You’ve already viewed every market in this category.
+              </div>
+              <button
+                onClick={clearViewedMarkets}
+                className="mt-3 px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition"
+              >
+                Reset viewed markets
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-white/60">No markets found in this category.</div>
+              <div className="text-white/40 text-sm">Try selecting a different category.</div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -380,6 +652,21 @@ const BettingPage: React.FC = () => {
           selectedCategory={categoryFilter}
           onCategoryChange={setCategoryFilter}
         />
+        <div className="flex justify-end mt-3 gap-2 flex-wrap">
+          <button
+            onClick={clearViewedMarkets}
+            className="px-3 py-1.5 bg-white/5 hover:bg-white/15 rounded text-white text-xs font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Reset viewed
+          </button>
+          <button
+            onClick={handleManualRefresh}
+            disabled={loading || manualRefreshing}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-xs font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading || manualRefreshing ? 'Refreshing…' : 'Refresh markets'}
+          </button>
+        </div>
       </div>
 
       {/* Default Bet Amount Control */}
@@ -437,17 +724,37 @@ const BettingPage: React.FC = () => {
       {/* Card stack - keyed by category to reset state when category changes */}
       {filteredMarkets.length > 0 ? (
         <CardStack 
-          key={categoryFilter} 
+          key={`${categoryFilter}-${user?.id ?? 'anon'}`} 
           markets={filteredMarkets}
           maxCredits={maxCredits}
           defaultBetAmount={safeDefaultBetAmount}
           onBetPlaced={handleBetPlaced}
+          onMarkViewed={markMarketAsViewed}
+          onRestoreViewed={unmarkMarketAsViewed}
         />
       ) : (
         <div className="flex flex-col items-center justify-center flex-1">
           <div className="text-white/60">No markets available.</div>
         </div>
       )}
+
+      {/* Load more controls */}
+      <div className="w-full max-w-lg mx-auto mt-6 flex flex-col items-center gap-3">
+        {hasMoreMarkets && (
+          <button
+            onClick={fetchMoreMarkets}
+            disabled={isFetchingMore}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isFetchingMore ? 'Loading more markets...' : 'Load more markets'}
+          </button>
+        )}
+        {!hasMoreMarkets && filteredMarkets.length > 0 && (
+          <div className="text-white/40 text-xs">
+            You&rsquo;re all caught up for this category. Check back soon for fresh markets.
+          </div>
+        )}
+      </div>
     </div>
   );
 };

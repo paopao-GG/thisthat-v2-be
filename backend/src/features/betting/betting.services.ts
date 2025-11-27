@@ -2,9 +2,7 @@ import { prisma } from '../../lib/database.js';
 import type { PlaceBetInput, BetQueryInput } from './betting.models.js';
 import { getPolymarketClient } from '../../lib/polymarket-client.js';
 import { normalizeMarket } from '../fetching/market-data/market-data.services.js';
-import { getDatabase } from '../../lib/mongodb.js';
 import type { Prisma } from '@prisma/client';
-import type { FlattenedMarket } from '../fetching/market-data/market-data.models.js';
 
 const MIN_BET_AMOUNT = 10;
 const MAX_BET_AMOUNT = 10000;
@@ -38,49 +36,7 @@ async function findOrSyncMarket(
     }
   }
 
-  console.log(`[findOrSyncMarket] Market not found in PostgreSQL, checking MongoDB...`);
-  
-  // Check MongoDB first (markets might be there but not synced to PostgreSQL yet)
-  try {
-    const db = await getDatabase();
-    const mongoMarket = await db.collection<FlattenedMarket>('markets').findOne({
-      conditionId: marketIdentifier,
-    });
-
-    if (mongoMarket) {
-      console.log(`[findOrSyncMarket] Found market in MongoDB, syncing to PostgreSQL...`);
-      // Sync from MongoDB to PostgreSQL
-      const status = mongoMarket.status === 'active' ? 'open' : 'closed';
-      const expiresAt =
-        mongoMarket.endDate && !Number.isNaN(new Date(mongoMarket.endDate).getTime())
-          ? new Date(mongoMarket.endDate)
-          : null;
-
-      const newMarket = await tx.market.create({
-        data: {
-          polymarketId: mongoMarket.conditionId,
-          title: mongoMarket.question,
-          description: mongoMarket.description || null,
-          thisOption: mongoMarket.thisOption,
-          thatOption: mongoMarket.thatOption,
-          thisOdds: mongoMarket.thisOdds || 0.5,
-          thatOdds: mongoMarket.thatOdds || 0.5,
-          liquidity: mongoMarket.liquidity ?? null,
-          category: mongoMarket.category || null,
-          marketType: 'polymarket',
-          status,
-          expiresAt,
-        },
-      });
-
-      console.log(`[findOrSyncMarket] Successfully synced market from MongoDB: ${newMarket.id}`);
-      return newMarket;
-    }
-  } catch (mongoError: any) {
-    console.warn(`[findOrSyncMarket] MongoDB check failed: ${mongoError.message}`);
-  }
-
-  console.log(`[findOrSyncMarket] Market not in MongoDB, fetching from Polymarket API...`);
+  console.log(`[findOrSyncMarket] Market not in PostgreSQL cache, fetching from Polymarket API...`);
   
   // As a last resort, fetch the market from Polymarket and insert it locally
   try {

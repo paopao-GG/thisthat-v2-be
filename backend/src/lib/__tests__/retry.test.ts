@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { retryWithBackoff, retryWithBackoffSilent } from '../retry.js';
 
 describe('retryWithBackoff', () => {
@@ -43,12 +43,14 @@ describe('retryWithBackoff', () => {
     // Fast-forward time to cover all retries (100 + 200 + 400 = 700ms total)
     await vi.advanceTimersByTimeAsync(1000);
 
+    // Use expect().rejects to properly handle the promise rejection
     await expect(promise).rejects.toThrow('Persistent error');
     expect(fn).toHaveBeenCalledTimes(3); // Initial + 2 retries
   });
 
   it('should use exponential backoff', async () => {
-    const fn = vi.fn().mockRejectedValue(new Error('Error'));
+    const error = new Error('Error');
+    const fn = vi.fn().mockRejectedValue(error);
     
     const promise = retryWithBackoff(fn, {
       maxRetries: 2,
@@ -59,6 +61,7 @@ describe('retryWithBackoff', () => {
     // Advance timers to trigger retries (100 + 200 = 300ms total for 2 retries)
     await vi.advanceTimersByTimeAsync(500);
 
+    // Use expect().rejects to properly handle the promise rejection
     await expect(promise).rejects.toThrow('Error');
     // Should have been called 3 times (initial + 2 retries)
     expect(fn).toHaveBeenCalledTimes(3);

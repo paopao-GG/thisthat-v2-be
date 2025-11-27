@@ -2,17 +2,11 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import dotenv from 'dotenv';
-import { connectMongoDB, closeMongoDB } from '../lib/mongodb.js';
-import marketDataRoutes from '../features/fetching/market-data/market-data.routes.js';
-import eventDataRoutes from '../features/fetching/event-data/event-data.routes.js';
-import eventMarketGroupRoutes from '../features/fetching/event-market-group/event-market-group.routes.js';
 import authRoutes from '../features/auth/auth.routes.js';
 import userRoutes from '../features/users/user.routes.js';
 import economyRoutes from '../features/economy/economy.routes.js';
 import bettingRoutes from '../features/betting/betting.routes.js';
-import syncRoutes from '../features/sync/sync.routes.js';
 import { startDailyCreditsJob, stopDailyCreditsJob } from '../jobs/daily-credits.job.js';
-import { startMarketSyncJob, stopMarketSyncJob } from '../jobs/market-sync.job.js';
 import { startMarketResolutionJob, stopMarketResolutionJob } from '../jobs/market-resolution.job.js';
 import { startLeaderboardUpdateJob, stopLeaderboardUpdateJob } from '../jobs/leaderboard-update.job.js';
 import leaderboardRoutes from '../features/leaderboard/leaderboard.routes.js';
@@ -21,6 +15,7 @@ import redis from '../lib/redis.js';
 import referralRoutes from '../features/referrals/referral.routes.js';
 import purchaseRoutes from '../features/purchases/purchases.routes.js';
 import marketsRoutes from '../features/markets/markets.routes.js';
+import { startMarketIngestionJob, stopMarketIngestionJob } from '../jobs/market-ingestion.job.js';
 
 // Load environment variables
 dotenv.config();
@@ -65,11 +60,6 @@ fastify.get('/api/hello', async (request, reply) => {
   return { message: 'Hello from TypeScript Fastify!' };
 });
 
-// Register Phase 1 routes (legacy MongoDB-based - kept for backward compatibility)
-await fastify.register(marketDataRoutes, { prefix: '/api/v1/markets/legacy' });
-await fastify.register(eventDataRoutes, { prefix: '/api/v1/events' });
-await fastify.register(eventMarketGroupRoutes, { prefix: '/api/v1/event-market-groups' });
-
 // Register Markets routes (PostgreSQL-based with live prices)
 await fastify.register(marketsRoutes, { prefix: '/api/v1/markets' });
 
@@ -84,9 +74,6 @@ await fastify.register(economyRoutes, { prefix: '/api/v1/economy' });
 
 // Register Betting routes
 await fastify.register(bettingRoutes, { prefix: '/api/v1/bets' });
-
-// Register Sync routes
-await fastify.register(syncRoutes, { prefix: '/api/v1/sync' });
 
 // Register Leaderboard routes
 await fastify.register(leaderboardRoutes, { prefix: '/api/v1/leaderboard' });
@@ -109,10 +96,6 @@ fastify.setErrorHandler((error, request, reply) => {
 // Start server
 const start = async () => {
   try {
-    // Connect to MongoDB
-    await connectMongoDB();
-    fastify.log.info('✅ MongoDB connected successfully');
-
     const port = Number(process.env.PORT) || 3001;
     const host = process.env.HOST || '0.0.0.0';
 
@@ -131,7 +114,7 @@ const start = async () => {
 
     // Start background jobs
     startDailyCreditsJob();
-    startMarketSyncJob();
+    startMarketIngestionJob();
     startMarketResolutionJob();
     startLeaderboardUpdateJob();
   } catch (err) {
@@ -147,7 +130,7 @@ const gracefulShutdown = async () => {
     
     // Stop background jobs
     stopDailyCreditsJob();
-    stopMarketSyncJob();
+    stopMarketIngestionJob();
     stopMarketResolutionJob();
     stopLeaderboardUpdateJob();
     
@@ -161,7 +144,6 @@ const gracefulShutdown = async () => {
     }
     
     await fastify.close();
-    await closeMongoDB();
     fastify.log.info('✅ Server and database connections closed');
     process.exit(0);
   } catch (err) {

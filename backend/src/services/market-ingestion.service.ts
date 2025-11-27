@@ -25,6 +25,14 @@ export interface MarketIngestionResult {
  * Extract static market data from Polymarket API response
  * Only includes fields that don't change frequently
  */
+function clampOdds(value: number | undefined): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 0.5;
+  }
+  // Keep odds within (0,1) to avoid invalid payouts
+  return Math.min(Math.max(value, 0.01), 0.99);
+}
+
 function extractStaticData(market: PolymarketMarket) {
   // Extract THIS/THAT options from outcomes
   let outcomes: string[] = [];
@@ -42,6 +50,9 @@ function extractStaticData(market: PolymarketMarket) {
 
   const thisOption = outcomes[0] || 'YES';
   const thatOption = outcomes[1] || 'NO';
+
+  const thisTokenPrice = market.tokens?.find((t) => t.outcome === thisOption)?.price;
+  const thatTokenPrice = market.tokens?.find((t) => t.outcome === thatOption)?.price;
 
   // Determine status from Polymarket fields
   // Priority: archived > accepting_orders > closed > active
@@ -64,6 +75,9 @@ function extractStaticData(market: PolymarketMarket) {
     description: market.description || null,
     thisOption,
     thatOption,
+    thisOdds: clampOdds(thisTokenPrice),
+    thatOdds: clampOdds(thatTokenPrice ?? (thisTokenPrice ? 1 - thisTokenPrice : undefined)),
+    liquidity: typeof market.liquidity === 'number' ? Number(market.liquidity) : null,
     category: market.category || null,
     marketType: 'polymarket' as const,
     status,
@@ -110,12 +124,19 @@ export async function ingestMarketsFromPolymarket(options?: {
     );
 
     if (!Array.isArray(markets)) {
-      console.error('[Market Ingestion] Invalid response from Polymarket API');
+      console.error(
+        '[Market Ingestion] Invalid response from Polymarket API - expected array, received:',
+        markets
+      );
       return result;
     }
 
     result.total = markets.length;
-    console.log(`[Market Ingestion] Fetched ${markets.length} markets`);
+    console.log(`[Market Ingestion] Fetched ${markets.length} markets (limit=${limit}, activeOnly=${activeOnly})`);
+
+    if (markets.length === 0) {
+      console.warn('[Market Ingestion] Polymarket returned 0 markets. Possible causes: credit limit reached, API throttling, or upstream outage.');
+    }
 
     for (const market of markets) {
       let staticData: any = null;
@@ -142,6 +163,9 @@ export async function ingestMarketsFromPolymarket(options?: {
               description: staticData.description,
               thisOption: staticData.thisOption,
               thatOption: staticData.thatOption,
+              thisOdds: staticData.thisOdds,
+              thatOdds: staticData.thatOdds,
+              liquidity: staticData.liquidity,
               category: staticData.category,
               status: staticData.status,
               expiresAt: staticData.expiresAt,
@@ -172,7 +196,7 @@ export async function ingestMarketsFromPolymarket(options?: {
     );
     return result;
   } catch (error: any) {
-    console.error('[Market Ingestion] Fatal error:', error.message);
+    console.error('[Market Ingestion] Fatal error:', error?.message || error);
     // Return partial result instead of throwing to allow job to continue
     return result;
   }
