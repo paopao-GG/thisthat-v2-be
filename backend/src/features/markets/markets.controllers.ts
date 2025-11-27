@@ -4,6 +4,7 @@
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import * as marketsService from './markets.services.js';
+import { ingestMarketsFromPolymarket } from '../../services/market-ingestion.service.js';
 
 /**
  * Get markets with live prices
@@ -69,6 +70,40 @@ export async function getMarketsHandler(
     return reply.status(500).send({
       success: false,
       error: 'Failed to get markets',
+      details: error.message || 'Unknown error',
+    });
+  }
+}
+
+/**
+ * Trigger on-demand ingestion from Polymarket
+ */
+export async function ingestMarketsHandler(
+  request: FastifyRequest<{
+    Body: {
+      limit?: number;
+      category?: string;
+    };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const { limit, category } = request.body || {};
+    const result = await ingestMarketsFromPolymarket({
+      limit,
+      activeOnly: true,
+      category,
+    });
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    request.log.error({ error }, 'Failed to ingest markets');
+    return reply.status(500).send({
+      success: false,
+      error: 'Failed to ingest markets',
       details: error.message || 'Unknown error',
     });
   }

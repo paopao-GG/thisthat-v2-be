@@ -11,6 +11,7 @@ import {
   getRandomMarketsHandler,
   getMarketsByCategoryHandler,
   getCategoriesHandler,
+  ingestMarketsHandler,
 } from './markets.controllers.js';
 
 export default async function marketsRoutes(fastify: FastifyInstance) {
@@ -21,6 +22,9 @@ export default async function marketsRoutes(fastify: FastifyInstance) {
   // Get random markets (static data only)
   fastify.get('/random', getRandomMarketsHandler);
   
+  // Trigger Polymarket ingestion (admin/diagnostic)
+  fastify.post('/ingest', ingestMarketsHandler);
+
   // Get all categories (must come before /:id to avoid matching)
   fastify.get('/categories', getCategoriesHandler);
   

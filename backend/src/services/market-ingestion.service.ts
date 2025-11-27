@@ -92,10 +92,12 @@ function extractStaticData(market: PolymarketMarket) {
 export async function ingestMarketsFromPolymarket(options?: {
   limit?: number;
   activeOnly?: boolean;
+  category?: string;
 }): Promise<MarketIngestionResult> {
   const client = getPolymarketClient();
   const limit = options?.limit ?? 500;
   const activeOnly = options?.activeOnly ?? true;
+  const categoryFilter = options?.category?.toLowerCase();
 
   const result: MarketIngestionResult = {
     total: 0,
@@ -131,14 +133,23 @@ export async function ingestMarketsFromPolymarket(options?: {
       return result;
     }
 
-    result.total = markets.length;
-    console.log(`[Market Ingestion] Fetched ${markets.length} markets (limit=${limit}, activeOnly=${activeOnly})`);
+    let filteredMarkets = markets;
+    if (categoryFilter) {
+      filteredMarkets = markets.filter(
+        (market) => (market.category || '').toLowerCase() === categoryFilter
+      );
+    }
 
-    if (markets.length === 0) {
+    result.total = filteredMarkets.length;
+    console.log(
+      `[Market Ingestion] Fetched ${filteredMarkets.length} markets (limit=${limit}, activeOnly=${activeOnly}, category=${categoryFilter ?? 'ALL'})`
+    );
+
+    if (filteredMarkets.length === 0) {
       console.warn('[Market Ingestion] Polymarket returned 0 markets. Possible causes: credit limit reached, API throttling, or upstream outage.');
     }
 
-    for (const market of markets) {
+    for (const market of filteredMarkets) {
       let staticData: any = null;
       try {
         staticData = extractStaticData(market);

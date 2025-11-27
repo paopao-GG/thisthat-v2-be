@@ -5,133 +5,13 @@ import { useCategoryFilter } from '@shared/contexts/CategoryFilterContext';
 import { useAuth } from '@shared/contexts/AuthContext';
 import { useSwipedMarkets } from '@shared/contexts/SwipedMarketsContext';
 import type { Market } from '@shared/types';
-import { getMarkets } from '@shared/services/marketService';
+import { getMarkets, ingestMarkets } from '@shared/services/marketService';
 import { getImageUrlForMarket, getImageUrlForOption } from '@shared/utils/imageFetcher';
 import '@/styles/betting/style.css';
 
 const PAGE_SIZE = 50;
 const VIEWED_STORAGE_PREFIX = 'viewedMarkets_';
-
-// Mock data - images will be fetched dynamically
-const mockMarketsBase: Omit<Market, 'imageUrl' | 'thisImageUrl' | 'thatImageUrl'>[] = [
-  {
-    id: '1',
-    title: 'Will Bitcoin reach $100k by end of 2025?',
-    description: 'Bitcoin has been on a bull run. Will it break the $100k mark before the year ends?',
-    thisOption: 'Yes, it will reach $100k',
-    thatOption: 'No, it stays below $100k',
-    thisOdds: 1.65,
-    thatOdds: 2.35,
-    expiryDate: new Date('2025-12-31'),
-    category: 'Crypto',
-    liquidity: 1250000,
-    marketType: 'binary',
-  },
-  {
-    id: '2',
-    title: 'Dota 2: BB4 vs Tundra',
-    description: '',
-    thisOption: 'BB4 BetBoom Team',
-    thatOption: 'Tundra Esports',
-    thisOdds: 1.85,
-    thatOdds: 2.05,
-    expiryDate: new Date('2024-11-05'),
-    category: 'Esports',
-    liquidity: 5000000,
-    marketType: 'two-image',
-  },
-  {
-    id: '3',
-    title: '$PENGU - Pump to $0.0175 or Dump to $0.0075?',
-    description: '',
-    thisOption: 'Pump to $0.0175',
-    thatOption: 'Dump to $0.0075',
-    thisOdds: 2.1,
-    thatOdds: 1.9,
-    expiryDate: new Date('2030-12-31'),
-    category: 'Crypto',
-    liquidity: 3200000,
-    marketType: 'binary',
-  },
-  {
-    id: '4',
-    title: 'Will the Lakers win the 2025 NBA Championship?',
-    description: 'The Lakers are looking strong this season. Can they bring home another championship?',
-    thisOption: 'Yes, Lakers win',
-    thatOption: 'No, another team wins',
-    thisOdds: 3.5,
-    thatOdds: 1.3,
-    expiryDate: new Date('2025-06-30'),
-    category: 'Sports',
-    liquidity: 2800000,
-    marketType: 'binary',
-  },
-  {
-    id: '5',
-    title: 'Will Tesla stock reach $500 by end of 2025?',
-    description: 'Tesla has been volatile. Will it hit the $500 mark by the end of next year?',
-    thisOption: 'Yes, reaches $500+',
-    thatOption: 'No, stays below $500',
-    thisOdds: 2.8,
-    thatOdds: 1.4,
-    expiryDate: new Date('2025-12-31'),
-    category: 'Finance',
-    liquidity: 4500000,
-    marketType: 'binary',
-  },
-  {
-    id: '9',
-    title: 'CS2: Faze vs NAVI',
-    description: '',
-    thisOption: 'Faze Clan',
-    thatOption: 'NAVI',
-    thisOdds: 1.9,
-    thatOdds: 1.9,
-    expiryDate: new Date('2025-12-31'),
-    category: 'Esports',
-    liquidity: 3800000,
-    marketType: 'two-image',
-  },
-  {
-    id: '6',
-    title: 'Will there be a major earthquake in California in 2025?',
-    description: 'Seismologists are monitoring activity. Will there be a significant earthquake this year?',
-    thisOption: 'Yes, major earthquake occurs',
-    thatOption: 'No, no major earthquake',
-    thisOdds: 4.2,
-    thatOdds: 1.2,
-    expiryDate: new Date('2025-12-31'),
-    category: 'Other',
-    liquidity: 1800000,
-    marketType: 'binary',
-  },
-  {
-    id: '7',
-    title: 'Will Apple release a foldable iPhone by 2026?',
-    description: 'Rumors are circulating about Apple\'s foldable device. Will it launch by 2026?',
-    thisOption: 'Yes, foldable iPhone launches',
-    thatOption: 'No, no foldable iPhone',
-    thisOdds: 2.5,
-    thatOdds: 1.5,
-    expiryDate: new Date('2026-12-31'),
-    category: 'Technology',
-    liquidity: 3600000,
-    marketType: 'binary',
-  },
-  {
-    id: '8',
-    title: 'Will the US economy enter a recession in 2025?',
-    description: 'Economic indicators are mixed. Will the US face a recession next year?',
-    thisOption: 'Yes, recession occurs',
-    thatOption: 'No, no recession',
-    thisOdds: 2.2,
-    thatOdds: 1.7,
-    expiryDate: new Date('2025-12-31'),
-    category: 'Finance',
-    liquidity: 5200000,
-    marketType: 'binary',
-  },
-];
+const AUTO_INGEST_KEY_FALLBACK = '__ALL__';
 
 interface CardStackProps {
   markets: Market[];
@@ -270,6 +150,9 @@ const BettingPage: React.FC = () => {
   const fetchControllerRef = useRef(0);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [viewedMarketIds, setViewedMarketIds] = useState<Set<string>>(new Set());
+  const [ingestingCategory, setIngestingCategory] = useState(false);
+  const categoryIngestAttemptsRef = useRef<Set<string>>(new Set());
+  const autoIngestAttemptsRef = useRef<Set<string>>(new Set());
   
   const getCategoryParam = useCallback(
     (category: string) => (category === 'All' ? undefined : category),
@@ -395,6 +278,33 @@ const BettingPage: React.FC = () => {
     [addImagesToMarkets]
   );
 
+  const runAutoIngest = useCallback(
+    async (categoryParam?: string) => {
+      const key = categoryParam ?? AUTO_INGEST_KEY_FALLBACK;
+      if (autoIngestAttemptsRef.current.has(key)) {
+        return false;
+      }
+
+      autoIngestAttemptsRef.current.add(key);
+
+      try {
+        setIngestingCategory(true);
+        await ingestMarkets({
+          category: categoryParam,
+          limit: PAGE_SIZE,
+        });
+        return true;
+      } catch (err: any) {
+        console.error('Automatic Polymarket fetch failed:', err);
+        setError(err?.message || 'Automatic Polymarket fetch failed. Please try again shortly.');
+        return false;
+      } finally {
+        setIngestingCategory(false);
+      }
+    },
+    [setError]
+  );
+
   const loadMarkets = useCallback(
     async (options?: { showGlobalLoading?: boolean; category?: string }) => {
       const { showGlobalLoading = false, category } = options || {};
@@ -419,11 +329,33 @@ const BettingPage: React.FC = () => {
         setIsFetchingMore(false);
 
         if (marketsWithImages.length === 0) {
-          console.warn('No markets fetched from backend, using mock data');
-          const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
-          setMarkets(mockMarketsWithImages);
+          console.warn('No markets fetched from backend.');
+          const autoIngested = await runAutoIngest(categoryParam);
+
+          if (fetchId !== fetchControllerRef.current) {
+            return;
+          }
+
+          if (autoIngested) {
+            const retryMarkets = await fetchMarketsBatch(categoryParam, 0);
+
+            if (fetchId !== fetchControllerRef.current) {
+              return;
+            }
+
+            if (retryMarkets.length > 0) {
+              setMarkets(retryMarkets);
+              setSkip(retryMarkets.length);
+              setHasMoreMarkets(retryMarkets.length === PAGE_SIZE);
+              setError(null);
+              return;
+            }
+          }
+
+          setMarkets([]);
           setHasMoreMarkets(false);
-          setSkip(mockMarketsWithImages.length);
+          setSkip(0);
+          setError('No markets available yet. We tried to fetch new ones automatically—please try again shortly.');
         } else {
           setMarkets(marketsWithImages);
           setSkip(marketsWithImages.length);
@@ -435,10 +367,9 @@ const BettingPage: React.FC = () => {
         }
         console.error('Failed to fetch markets:', err);
         setError(err.message || 'Failed to load markets');
-        const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
-        setMarkets(mockMarketsWithImages);
+        setMarkets([]);
         setHasMoreMarkets(false);
-        setSkip(mockMarketsWithImages.length);
+        setSkip(0);
       } finally {
         if (fetchId === fetchControllerRef.current) {
           if (showGlobalLoading) {
@@ -449,7 +380,7 @@ const BettingPage: React.FC = () => {
         }
       }
     },
-    [addImagesToMarkets, fetchMarketsBatch, categoryFilter, getCategoryParam]
+    [addImagesToMarkets, fetchMarketsBatch, categoryFilter, getCategoryParam, runAutoIngest]
   );
 
   // Initial load & when category changes (even though currently disregarded)
@@ -460,6 +391,23 @@ const BettingPage: React.FC = () => {
   const handleManualRefresh = useCallback(() => {
     loadMarkets({ showGlobalLoading: false });
   }, [loadMarkets]);
+
+  const handleIngestCategory = useCallback(async () => {
+    if (categoryFilter === 'All' || ingestingCategory) return;
+    try {
+      setIngestingCategory(true);
+      await ingestMarkets({
+        category: categoryFilter,
+        limit: PAGE_SIZE,
+      });
+      await loadMarkets({ showGlobalLoading: false, category: getCategoryParam(categoryFilter) });
+    } catch (err: any) {
+      console.error('Failed to fetch new category markets:', err);
+      setError(err?.message || 'Unable to fetch new markets for this category');
+    } finally {
+      setIngestingCategory(false);
+    }
+  }, [categoryFilter, getCategoryParam, ingestingCategory, loadMarkets]);
 
   useEffect(() => {
     const intervalMs = Number(import.meta.env.VITE_MARKET_REFRESH_INTERVAL_MS || 60000);
@@ -538,6 +486,25 @@ const BettingPage: React.FC = () => {
 
     return next;
   }, [categoryFilter, markets, isMarketSwiped, viewedMarketIds]);
+
+  useEffect(() => {
+    if (filteredMarkets.length > 0) {
+      categoryIngestAttemptsRef.current.delete(categoryFilter);
+    }
+  }, [filteredMarkets.length, categoryFilter]);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      !ingestingCategory &&
+      categoryFilter !== 'All' &&
+      filteredMarkets.length === 0 &&
+      !categoryIngestAttemptsRef.current.has(categoryFilter)
+    ) {
+      categoryIngestAttemptsRef.current.add(categoryFilter);
+      handleIngestCategory();
+    }
+  }, [categoryFilter, filteredMarkets.length, handleIngestCategory, ingestingCategory, loading]);
 
   // Auto-load more when user has swiped everything we have locally
   useEffect(() => {
@@ -625,6 +592,19 @@ const BettingPage: React.FC = () => {
                 Reset viewed markets
               </button>
             </>
+          ) : categoryFilter !== 'All' ? (
+            <>
+              <div className="text-white/60 text-center">
+                No markets found for {categoryFilter}. Fetch fresh markets from Polymarket?
+              </div>
+              <button
+                onClick={handleIngestCategory}
+                disabled={ingestingCategory}
+                className="mt-3 px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {ingestingCategory ? 'Fetching...' : 'Fetch new markets'}
+              </button>
+            </>
           ) : (
             <>
               <div className="text-white/60">No markets found in this category.</div>
@@ -666,6 +646,15 @@ const BettingPage: React.FC = () => {
           >
             {loading || manualRefreshing ? 'Refreshing…' : 'Refresh markets'}
           </button>
+          {categoryFilter !== 'All' && (
+            <button
+              onClick={handleIngestCategory}
+              disabled={ingestingCategory}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-white text-xs font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {ingestingCategory ? 'Fetching…' : 'Fetch new'}
+            </button>
+          )}
         </div>
       </div>
 

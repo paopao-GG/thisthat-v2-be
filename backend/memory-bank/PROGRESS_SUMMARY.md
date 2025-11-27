@@ -164,11 +164,6 @@
   - Calculates PnL, value, and percentages
   - Filters into active/closed positions
   - Shows real betting history in "Previous Activity" tab
-- ✅ **2025-11-27 Update**
-  - Continuous horizontal swiping works without page refresh.
-  - Swipe-up marks markets as viewed/skipped (persisted per-user) so returning to the page doesn’t re-show them.
-  - Swipe-down restores the last viewed market, acting as “previous card”.
-  - Category filtering is end-to-end: backend fetches include the selected category, UI filtering only shows matching markets, and empty states now offer “Reset viewed” + “Fetch new” actions.
 
 ### Polymarket Diagnostics & Betting UX Refresh (2025-11-27)
 - ✅ **Backend health scripts added (`backend/scripts/tests/`)**
@@ -181,7 +176,6 @@
   - Swipe-up marks markets as viewed/skipped (persisted per-user) so returning to the page doesn’t re-show them
   - Swipe-down restores the last viewed market, mimicking a “previous card” action
   - Category filtering now fetches category-specific markets again and exposes reset/refresh controls (including a “Reset viewed” button when a category is exhausted)
-  - New `POST /api/v1/markets/ingest` endpoint lets the frontend (or ops) trigger a Polymarket ingestion for a specific category; the betting page automatically calls it when a category is empty and offers a “Fetch new markets” action to the user.
 
 ### Frontend Authentication Integration (2025-11-26)
 - ✅ **AuthContext & API Services**

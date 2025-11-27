@@ -2,7 +2,7 @@
  * Market Service
  */
 
-import { apiGet } from './api';
+import { apiGet, apiPost } from './api';
 import type { Market } from '../types';
 
 export interface MarketStaticData {
@@ -139,5 +139,21 @@ export async function getMarketFull(marketId: string): Promise<MarketWithLiveDat
   } catch (error: any) {
     console.error('getMarketFull error:', error);
     return null;
+  }
+}
+
+/**
+ * Trigger on-demand Polymarket ingestion (category optional)
+ */
+export async function ingestMarkets(options?: { category?: string; limit?: number }) {
+  try {
+    const response = await apiPost<{ success: boolean; data: any }>(
+      '/api/v1/markets/ingest',
+      options ?? {}
+    );
+    return response;
+  } catch (error: any) {
+    console.error('ingestMarkets error:', error);
+    throw error;
   }
 }
