@@ -162,9 +162,9 @@ describe('Market Ingestion Service', () => {
           description: 'Weather prediction',
           thisOption: 'YES',
           thatOption: 'NO',
-          author: 'user123',
           category: 'weather',
           status: 'open',
+          marketType: 'polymarket',
         }),
       });
     });

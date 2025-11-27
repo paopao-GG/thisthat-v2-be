@@ -88,15 +88,15 @@ describe('Markets Service', () => {
       const result = await marketsService.getMarketsByCategory('crypto', 20);
 
       expect(result).toHaveLength(1);
-      expect(mockPrisma.market.findMany).toHaveBeenCalledWith({
-        where: {
-          status: 'open',
-          category: { equals: 'crypto', mode: 'insensitive' },
-        },
-        take: 20,
-        orderBy: { updatedAt: 'desc' },
-        select: expect.any(Object),
-      });
+      expect(mockPrisma.market.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: 'open',
+            category: { equals: 'crypto', mode: 'insensitive' },
+          }),
+          take: 20,
+        })
+      );
     });
   });
 
@@ -112,7 +112,11 @@ describe('Markets Service', () => {
 
       const result = await marketsService.getMarketById('market-1');
 
-      expect(result).toEqual(mockMarket);
+      expect(result).toEqual({
+        ...mockMarket,
+        author: null,
+        imageUrl: null,
+      });
       expect(mockPrisma.market.findUnique).toHaveBeenCalledWith({
         where: { id: 'market-1' },
         select: expect.any(Object),

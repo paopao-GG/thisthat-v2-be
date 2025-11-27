@@ -121,7 +121,7 @@ describe('Auth Services', () => {
 
       const result = await authService.registerUser(signupInput, mockJwt as any);
 
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2); // Check email and username
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(3); // Referral code uniqueness + email + username
       expect(mockPrisma.user.create).toHaveBeenCalled();
       expect(result.user.email).toBe(signupInput.email);
       expect(result.user.creditBalance).toBe(1000);

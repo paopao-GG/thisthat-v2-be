@@ -297,8 +297,8 @@ describe('OAuth Services', () => {
       );
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.anything(),
         expect.objectContaining({
+          where: { id: 'user-123' },
           data: expect.objectContaining({
             consecutiveDaysOnline: 1,
           }),

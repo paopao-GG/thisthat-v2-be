@@ -39,12 +39,13 @@ describe('retryWithBackoff', () => {
     const fn = vi.fn().mockRejectedValue(error);
 
     const promise = retryWithBackoff(fn, { maxRetries: 2, initialDelayMs: 100 });
+    const rejection = expect(promise).rejects.toThrow('Persistent error');
 
     // Fast-forward time to cover all retries (100 + 200 + 400 = 700ms total)
     await vi.advanceTimersByTimeAsync(1000);
 
-    // Use expect().rejects to properly handle the promise rejection
-    await expect(promise).rejects.toThrow('Persistent error');
+    // Await the expectation after timers complete to avoid unhandled rejections
+    await rejection;
     expect(fn).toHaveBeenCalledTimes(3); // Initial + 2 retries
   });
 
@@ -57,12 +58,12 @@ describe('retryWithBackoff', () => {
       initialDelayMs: 100,
       backoffMultiplier: 2,
     });
+    const rejection = expect(promise).rejects.toThrow('Error');
 
     // Advance timers to trigger retries (100 + 200 = 300ms total for 2 retries)
     await vi.advanceTimersByTimeAsync(500);
 
-    // Use expect().rejects to properly handle the promise rejection
-    await expect(promise).rejects.toThrow('Error');
+    await rejection;
     // Should have been called 3 times (initial + 2 retries)
     expect(fn).toHaveBeenCalledTimes(3);
   });

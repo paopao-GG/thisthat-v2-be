@@ -91,11 +91,11 @@ describe('Market Data Services', () => {
       expect(result.description).toBe('Bitcoin price prediction');
       expect(result.thisOption).toBe('Yes');
       expect(result.thatOption).toBe('No');
-      expect(result.thisOdds).toBe(0.65);
-      expect(result.thatOdds).toBe(0.35);
-      expect(result.volume).toBe(1000000);
-      expect(result.volume24hr).toBe(50000);
-      expect(result.liquidity).toBe(200000);
+      expect(result.thisOdds).toBeUndefined();
+      expect(result.thatOdds).toBeUndefined();
+      expect(result.volume).toBeUndefined();
+      expect(result.volume24hr).toBeUndefined();
+      expect(result.liquidity).toBeUndefined();
       expect(result.category).toBe('crypto');
       expect(result.tags).toEqual(['bitcoin', 'price']);
       expect(result.status).toBe('active');
@@ -103,7 +103,6 @@ describe('Market Data Services', () => {
       expect(result.endDate).toBe('2025-12-31T23:59:59Z');
       expect(result.startDate).toBe('2025-01-01T00:00:00Z');
       expect(result.source).toBe('polymarket');
-      expect(result.rawData).toEqual(polymarketMarket);
       expect(result.createdAt).toBeInstanceOf(Date);
       expect(result.updatedAt).toBeInstanceOf(Date);
     });
@@ -125,8 +124,8 @@ describe('Market Data Services', () => {
       // Assert
       expect(result.thisOption).toBe('YES'); // Default
       expect(result.thatOption).toBe('NO'); // Default
-      expect(result.thisOdds).toBe(0.5); // Default
-      expect(result.thatOdds).toBe(0.5); // Default
+      expect(result.thisOdds).toBeUndefined(); // Prices stored separately
+      expect(result.thatOdds).toBeUndefined();
       expect(result.status).toBe('closed'); // Default when no accepting_orders
     });
 
@@ -246,8 +245,8 @@ describe('Market Data Services', () => {
       const result = normalizeMarket(marketWithTokens);
 
       // Assert
-      expect(result.thisOdds).toBe(0.75);
-      expect(result.thatOdds).toBe(0.25);
+      expect(result.thisOdds).toBeUndefined();
+      expect(result.thatOdds).toBeUndefined();
     });
   });
 

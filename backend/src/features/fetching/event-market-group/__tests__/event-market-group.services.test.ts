@@ -13,15 +13,15 @@ const mockMongoDB = vi.hoisted(() => ({
 const mockNormalizeMarket = vi.hoisted(() => vi.fn());
 
 // Mock dependencies
-vi.mock('../../../lib/polymarket-client.js', () => ({
+vi.mock('../../../../lib/polymarket-client.js', () => ({
   getPolymarketClient: vi.fn(() => mockPolymarketClient),
 }));
 
-vi.mock('../../../lib/mongodb.js', () => ({
+vi.mock('../../../../lib/mongodb.js', () => ({
   getDatabase: vi.fn(() => Promise.resolve(mockMongoDB)),
 }));
 
-vi.mock('../market-data/market-data.services.js', () => ({
+vi.mock('../../market-data/market-data.services.js', () => ({
   normalizeMarket: mockNormalizeMarket,
 }));
 
@@ -76,8 +76,8 @@ describe('Event-Market Group Services', () => {
       };
       
       mockMongoDB.collection
-        .mockReturnValueOnce(marketsCollection) // First call for markets collection
-        .mockReturnValueOnce(eventsCollection); // Second call for events collection
+        .mockReturnValueOnce(eventsCollection) // First call for events collection
+        .mockReturnValueOnce(marketsCollection); // Second call for markets collection
 
       const result = await eventMarketGroupService.fetchAndSaveEventMarketGroups();
 
@@ -102,8 +102,8 @@ describe('Event-Market Group Services', () => {
       };
       
       mockMongoDB.collection
-        .mockReturnValueOnce(marketsCollection)
-        .mockReturnValueOnce(eventsCollection);
+        .mockReturnValueOnce(eventsCollection)
+        .mockReturnValueOnce(marketsCollection);
 
       const result = await eventMarketGroupService.fetchAndSaveEventMarketGroups();
 
@@ -128,7 +128,7 @@ describe('Event-Market Group Services', () => {
       await eventMarketGroupService.fetchAndSaveEventMarketGroups({ limit: 10 });
 
       expect(mockPolymarketClient.getEvents).toHaveBeenCalledWith({
-        closed: undefined,
+        closed: false,
         limit: 10,
       });
     });
@@ -152,8 +152,8 @@ describe('Event-Market Group Services', () => {
       };
       
       mockMongoDB.collection
-        .mockReturnValueOnce(marketsCollection)
-        .mockReturnValueOnce(eventsCollection);
+        .mockReturnValueOnce(eventsCollection)
+        .mockReturnValueOnce(marketsCollection);
 
       const result = await eventMarketGroupService.fetchAndSaveEventMarketGroups();
 
@@ -174,8 +174,8 @@ describe('Event-Market Group Services', () => {
       };
       
       mockMongoDB.collection
-        .mockReturnValueOnce(marketsCollection)
-        .mockReturnValueOnce(eventsCollection);
+        .mockReturnValueOnce(eventsCollection)
+        .mockReturnValueOnce(marketsCollection);
 
       await eventMarketGroupService.fetchAndSaveEventMarketGroups();
 

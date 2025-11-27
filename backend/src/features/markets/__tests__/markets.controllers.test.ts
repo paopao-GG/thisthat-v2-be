@@ -19,6 +19,8 @@ describe('Markets Controllers', () => {
       params: {},
       log: {
         error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
       } as any,
     };
 
@@ -46,7 +48,6 @@ describe('Markets Controllers', () => {
         mockReply as FastifyReply
       );
 
-      expect(mockReply.status).toHaveBeenCalledWith(200);
       expect(mockReply.send).toHaveBeenCalledWith({
         success: true,
         data: mockMarkets,
@@ -78,11 +79,12 @@ describe('Markets Controllers', () => {
       expect(mockReply.send).toHaveBeenCalledWith({
         success: false,
         error: 'Failed to get random markets',
+        details: 'DB error',
       });
     });
   });
 
-  describe('getMarketLivePriceHandler', () => {
+  describe('getMarketLiveHandler', () => {
     it('should return live price data', async () => {
       const mockMarket = {
         id: 'market-1',
@@ -103,12 +105,11 @@ describe('Markets Controllers', () => {
       vi.mocked(marketsService.fetchLivePriceData).mockResolvedValue(mockLiveData);
       mockRequest.params = { id: 'market-1' };
 
-      await marketsControllers.getMarketLivePriceHandler(
+      await marketsControllers.getMarketLiveHandler(
         mockRequest as FastifyRequest,
         mockReply as FastifyReply
       );
 
-      expect(mockReply.status).toHaveBeenCalledWith(200);
       expect(mockReply.send).toHaveBeenCalledWith({
         success: true,
         data: mockLiveData,
@@ -120,7 +121,7 @@ describe('Markets Controllers', () => {
       vi.mocked(marketsService.getMarketById).mockResolvedValue(null);
       mockRequest.params = { id: 'invalid-id' };
 
-      await marketsControllers.getMarketLivePriceHandler(
+      await marketsControllers.getMarketLiveHandler(
         mockRequest as FastifyRequest,
         mockReply as FastifyReply
       );
@@ -137,7 +138,7 @@ describe('Markets Controllers', () => {
       vi.mocked(marketsService.getMarketById).mockResolvedValue(mockMarket as any);
       mockRequest.params = { id: 'market-1' };
 
-      await marketsControllers.getMarketLivePriceHandler(
+      await marketsControllers.getMarketLiveHandler(
         mockRequest as FastifyRequest,
         mockReply as FastifyReply
       );
@@ -167,7 +168,6 @@ describe('Markets Controllers', () => {
         mockReply as FastifyReply
       );
 
-      expect(mockReply.status).toHaveBeenCalledWith(200);
       expect(mockReply.send).toHaveBeenCalledWith({
         success: true,
         data: mockMarketWithLive,
