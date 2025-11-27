@@ -6,3 +6,4 @@ console.log(`TEST_POLYMARKET_LIMIT: ${process.env.TEST_POLYMARKET_LIMIT || '(not
 console.log(`POLYMARKET_BASE_URL: ${process.env.POLYMARKET_BASE_URL || '(default gamma)'}`);
 console.log(`POLYMARKET_API_KEY: ${process.env.POLYMARKET_API_KEY ? '(set)' : '(not set, using public endpoints)'}`);
 
+

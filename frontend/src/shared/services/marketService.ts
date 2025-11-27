@@ -68,7 +68,7 @@ export async function getMarkets(options?: GetMarketsOptions): Promise<Market[]>
         thisOdds: market.thisOdds || 0.5,
         thatOdds: market.thatOdds || 0.5,
         expiryDate: market.expiresAt ? new Date(market.expiresAt) : new Date(),
-        category: market.category || 'Other',
+        category: market.category || 'general', // Keep lowercase to match backend
         liquidity: market.liquidity || 0,
         imageUrl: market.imageUrl || undefined,
         marketType: 'binary' as const,
@@ -139,6 +139,26 @@ export async function getMarketFull(marketId: string): Promise<MarketWithLiveDat
   } catch (error: any) {
     console.error('getMarketFull error:', error);
     return null;
+  }
+}
+
+/**
+ * Get all available categories from the database
+ */
+export async function getCategories(): Promise<string[]> {
+  try {
+    const response = await apiGet<{ success: boolean; data: string[] }>(
+      '/api/v1/markets/categories'
+    );
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    return [];
+  } catch (error: any) {
+    console.error('getCategories error:', error);
+    return [];
   }
 }
 

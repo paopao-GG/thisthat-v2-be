@@ -19,6 +19,8 @@
     "test:cron": "tsx scripts/tests/run-ingestion-cron-once.ts",
     "show:ingest-config": "tsx scripts/tests/show-ingestion-config.ts",
     "list:markets": "tsx scripts/tests/list-latest-markets.ts",
+    "list:categories": "tsx scripts/list-categories.ts",
+    "fix:categories": "tsx scripts/fix-categories.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",

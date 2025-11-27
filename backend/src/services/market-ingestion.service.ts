@@ -69,6 +69,42 @@ function extractStaticData(market: PolymarketMarket) {
   const endDateStr = market.endDateIso || market.end_date_iso;
   const expiresAt = endDateStr ? new Date(endDateStr) : null;
 
+  // Derive category from market data
+  // Priority: 1) market.category, 2) first tag, 3) derive from title/description
+  let category = market.category || null;
+  
+  if (!category && market.tags && market.tags.length > 0) {
+    // Use first tag as category if available
+    category = market.tags[0];
+  }
+  
+  if (!category) {
+    // Derive category from title/description keywords
+    const titleLower = (market.question || '').toLowerCase();
+    const descLower = (market.description || '').toLowerCase();
+    const combined = `${titleLower} ${descLower}`;
+    
+    // Category keywords mapping
+    if (combined.match(/\b(politics|election|president|senate|congress|trump|biden|democrat|republican)\b/)) {
+      category = 'politics';
+    } else if (combined.match(/\b(crypto|bitcoin|ethereum|blockchain|defi|nft|token)\b/)) {
+      category = 'crypto';
+    } else if (combined.match(/\b(sports|football|basketball|soccer|nfl|nba|mlb|soccer|championship|super bowl)\b/)) {
+      category = 'sports';
+    } else if (combined.match(/\b(economy|recession|inflation|fed|rate|gdp|unemployment|stock market)\b/)) {
+      category = 'economics';
+    } else if (combined.match(/\b(weather|climate|temperature|rain|snow|hurricane|tornado)\b/)) {
+      category = 'weather';
+    } else if (combined.match(/\b(entertainment|movie|tv|celebrity|award|oscar|grammy)\b/)) {
+      category = 'entertainment';
+    } else if (combined.match(/\b(technology|ai|tech|software|hardware|apple|google|microsoft)\b/)) {
+      category = 'technology';
+    } else {
+      // Default category
+      category = 'general';
+    }
+  }
+
   return {
     polymarketId: market.conditionId || market.condition_id,
     title: market.question,
@@ -78,7 +114,7 @@ function extractStaticData(market: PolymarketMarket) {
     thisOdds: clampOdds(thisTokenPrice),
     thatOdds: clampOdds(thatTokenPrice ?? (thisTokenPrice ? 1 - thisTokenPrice : undefined)),
     liquidity: typeof market.liquidity === 'number' ? Number(market.liquidity) : null,
-    category: market.category || null,
+    category,
     marketType: 'polymarket' as const,
     status,
     expiresAt,
