@@ -131,7 +131,7 @@ export async function ingestMarketsFromPolymarket(options?: {
   category?: string;
 }): Promise<MarketIngestionResult> {
   const client = getPolymarketClient();
-  const limit = options?.limit ?? 500;
+  const limit = options?.limit ?? 1000;
   const activeOnly = options?.activeOnly ?? true;
   const categoryFilter = options?.category?.toLowerCase();
 

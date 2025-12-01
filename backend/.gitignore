@@ -38,3 +38,5 @@ coverage/
 .cache/
 tmp/
 temp/
+polymarket-export/
+polymarket-export-auth/
