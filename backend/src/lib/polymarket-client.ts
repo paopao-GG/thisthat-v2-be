@@ -171,6 +171,10 @@ export class PolymarketClient {
             retryableErrors: (error: any) => {
               if (!error.response) return true; // Network error
               const status = error.response.status;
+              // Don't retry on 422 (invalid request) or 404 (not found)
+              if (status === 422 || status === 404) {
+                return false;
+              }
               return status === 429 || status >= 500;
             },
           }
@@ -178,7 +182,10 @@ export class PolymarketClient {
       });
     } catch (error: any) {
       // Return null on failure (graceful degradation)
-      console.error(`Error fetching market ${conditionId}:`, error.message);
+      // Only log non-422 errors to reduce noise (422 means invalid market ID)
+      if (error?.response?.status !== 422) {
+        console.error(`Error fetching market ${conditionId}:`, error.message);
+      }
       return null;
     }
   }

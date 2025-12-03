@@ -19,7 +19,7 @@ async function runIngestion(label: string) {
   try {
     console.log(`[Market Ingestion Job] Starting ${label} run...`);
     const result = await ingestMarketsFromPolymarket({
-      limit: Number(process.env.MARKET_INGEST_LIMIT) || 500,
+      limit: Number(process.env.MARKET_INGEST_LIMIT) || 1000,
       activeOnly: true,
     });
     console.log(
@@ -38,17 +38,28 @@ export function startMarketIngestionJob() {
     return;
   }
 
-  const cronExpression = process.env.MARKET_INGEST_CRON || '*/5 * * * *';
-  ingestionTask = cron.schedule(cronExpression, () => runIngestion('scheduled'), {
-    scheduled: true,
-    timezone: 'UTC',
-  });
+  try {
+    const cronExpression = process.env.MARKET_INGEST_CRON || '*/5 * * * *';
+    ingestionTask = cron.schedule(cronExpression, () => runIngestion('scheduled'), {
+      scheduled: true,
+      timezone: 'UTC',
+    });
 
-  console.log(`[Market Ingestion Job] Scheduler started (cron: ${cronExpression}, timezone: UTC)`);
-  // Kick off an immediate run so we have fresh data as soon as the server boots
-  runIngestion('startup').catch((error) =>
-    console.error('[Market Ingestion Job] Startup run failed:', error?.message || error)
-  );
+    console.log(`[Market Ingestion Job] Scheduler started (cron: ${cronExpression}, timezone: UTC)`);
+    // Kick off an immediate run so we have fresh data as soon as the server boots
+    console.log('[Market Ingestion Job] Triggering startup ingestion...');
+    runIngestion('startup').catch((error) => {
+      console.error('[Market Ingestion Job] Startup run failed:', error?.message || error);
+      if (error?.stack) {
+        console.error('[Market Ingestion Job] Stack trace:', error.stack);
+      }
+    });
+  } catch (error: any) {
+    console.error('[Market Ingestion Job] Failed to start scheduler:', error?.message || error);
+    if (error?.stack) {
+      console.error('[Market Ingestion Job] Stack trace:', error.stack);
+    }
+  }
 }
 
 export function stopMarketIngestionJob() {

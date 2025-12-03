@@ -309,6 +309,30 @@ export async function getMarketsByCategoryHandler(
 }
 
 /**
+ * Get market count
+ */
+export async function getMarketCountHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const count = await marketsService.getMarketCount();
+
+    return reply.send({
+      success: true,
+      count,
+    });
+  } catch (error: any) {
+    request.log.error({ error }, 'Failed to get market count');
+    return reply.status(500).send({
+      success: false,
+      error: 'Failed to get market count',
+      details: error.message || 'Unknown error',
+    });
+  }
+}
+
+/**
  * Get all categories
  */
 export async function getCategoriesHandler(

@@ -354,6 +354,13 @@ export async function getMarketWithLiveData(marketId: string): Promise<MarketWit
 }
 
 /**
+ * Get total market count
+ */
+export async function getMarketCount(): Promise<number> {
+  return await marketsPrisma.market.count();
+}
+
+/**
  * Get all available categories
  */
 export async function getCategories(): Promise<string[]> {

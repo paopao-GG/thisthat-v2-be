@@ -10,6 +10,7 @@ import bettingRoutes from '../features/betting/betting.routes.js';
 import { startDailyCreditsJob, stopDailyCreditsJob } from '../jobs/daily-credits.job.js';
 import { startMarketResolutionJob, stopMarketResolutionJob } from '../jobs/market-resolution.job.js';
 import { startLeaderboardUpdateJob, stopLeaderboardUpdateJob } from '../jobs/leaderboard-update.job.js';
+import { startCategoryPrefetchJob, stopCategoryPrefetchJob } from '../jobs/category-prefetch.job.js';
 import leaderboardRoutes from '../features/leaderboard/leaderboard.routes.js';
 import transactionRoutes from '../features/transactions/transactions.routes.js';
 import redis from '../lib/redis.js';
@@ -160,7 +161,8 @@ const start = async () => {
 
     // Start background jobs
     startDailyCreditsJob();
-    startMarketIngestionJob();
+    startMarketIngestionJob(); // Keep for backward compatibility (now less important)
+    startCategoryPrefetchJob(); // New intelligent prefetch system
     startMarketResolutionJob();
     startLeaderboardUpdateJob();
   } catch (err) {
@@ -177,6 +179,7 @@ const gracefulShutdown = async () => {
     // Stop background jobs
     stopDailyCreditsJob();
     stopMarketIngestionJob();
+    stopCategoryPrefetchJob();
     stopMarketResolutionJob();
     stopLeaderboardUpdateJob();
     

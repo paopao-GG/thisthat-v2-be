@@ -8,38 +8,49 @@
 ## Summary
 
 **Total Items:** 10  
-**✅ Accomplished:** 3 (30%)  
+**✅ Accomplished:** 4 (40%)  
 **🔄 Partially Done:** 3 (30%)  
-**❌ Not Started:** 4 (40%)
+**❌ Not Started:** 3 (30%)
 
 ---
 
 ## Detailed Status
 
-### 1. ❌ Database Separation
-**Status:** NOT STARTED  
+### 1. ✅ Database Separation
+**Status:** ACCOMPLISHED  
 **Planned:** Create separate databases for user data/transactions vs markets storage
 
 **Current State:**
-- ✅ Single PostgreSQL database for all data (users, bets, markets, transactions)
-- ✅ MongoDB exists but is optional (used for market data caching, not required)
-- ✅ All tables in same database: `users`, `markets`, `bets`, `credit_transactions`, etc.
+- ✅ Two separate PostgreSQL databases:
+  - ✅ `thisthat_markets` - Stores market data only
+  - ✅ `thisthat_users` - Stores user data, bets, transactions, etc.
+- ✅ MongoDB completely removed (no longer needed)
+- ✅ Separate Prisma schemas and clients
 
 **What Exists:**
-- `prisma/schema.prisma` - Single datasource pointing to one PostgreSQL database
-- `DATABASE_URL` - Single connection string
-- MongoDB is separate but optional (not a requirement)
+- ✅ `prisma/schema.markets.prisma` - Markets database schema with `Market` model
+- ✅ `prisma/schema.users.prisma` - Users database schema with `User`, `Bet`, `CreditTransaction`, etc.
+- ✅ `MARKETS_DATABASE_URL` - Connection string for markets database
+- ✅ `USERS_DATABASE_URL` - Connection string for users database
+- ✅ `src/lib/database.ts` - Exports `marketsPrisma` and `usersPrisma` clients
+- ✅ All services updated to use correct database client
 
-**What's Needed:**
-- Create second PostgreSQL database
-- Split schema into two Prisma schemas or use multiple datasources
-- Separate connection strings
-- Update all services to use correct database
+**Implementation Details:**
+- Markets database: Only contains `Market` model
+- Users database: Contains `User`, `Bet`, `CreditTransaction`, `OAuthAccount`, `Referral`, `Purchase` models
+- Services use `marketsPrisma` for market operations, `usersPrisma` for user/bet operations
+- Market ingestion service uses `marketsPrisma`
+- Betting service uses both clients (markets for market lookup, users for bet creation)
+- Market resolution service uses both clients (markets for market updates, users for bet payouts)
 
-**Files to Check:**
-- `backend/prisma/schema.prisma` - Single datasource
-- `backend/src/lib/database.ts` - Single Prisma client
-- `backend/env.template` - Single `DATABASE_URL`
+**Files:**
+- ✅ `backend/prisma/schema.markets.prisma` - Markets database schema
+- ✅ `backend/prisma/schema.users.prisma` - Users database schema
+- ✅ `backend/src/lib/database.ts` - Separate Prisma clients
+- ✅ `backend/env.template` - Two database URLs
+- ✅ `backend/MIGRATION_NOTES.md` - Migration documentation
+- ✅ `backend/docs/CREATE_DATABASES.md` - Database creation guide
+- ✅ All service files updated to use correct database client
 
 ---
 
@@ -374,7 +385,7 @@ const [swipedMarketIds, setSwipedMarketIds] = useState<Set<string>>(new Set());
 5. **Skipped Markets Time Window** (#10) - Improve market discovery
 
 ### Low Priority (Can Defer)
-6. **Database Separation** (#1) - Optimization for scale
+6. **Database Separation** (#1) - ✅ COMPLETE - Optimization for scale
 7. **Static Test Data** (#8) - Development/testing convenience
 8. **Scenario & Risk Mapping** (#4) - Documentation/planning
 
@@ -389,4 +400,20 @@ const [swipedMarketIds, setSwipedMarketIds] = useState<Set<string>>(new Set());
 ---
 
 **Last Updated:** 2025-01-XX
+
+---
+
+## Recent Updates (2025-01-XX)
+
+### ✅ Database Separation - COMPLETED
+- Successfully separated markets and users into two PostgreSQL databases
+- Removed MongoDB entirely
+- Updated all services to use correct database clients
+- Created comprehensive migration documentation
+
+### ✅ Frontend Market Integration - COMPLETED
+- Removed mock data fallback
+- Auto-triggers market ingestion when needed
+- Fixed market type mapping
+- Improved error handling and loading states
 

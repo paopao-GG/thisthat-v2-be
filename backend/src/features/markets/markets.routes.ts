@@ -4,7 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
-import { 
+import {
   getMarketsHandler,
   getMarketByIdHandler,
   getMarketLiveHandler,
@@ -12,6 +12,7 @@ import {
   getRandomMarketsHandler,
   getMarketsByCategoryHandler,
   getCategoriesHandler,
+  getMarketCountHandler,
   ingestMarketsHandler,
 } from './markets.controllers.js';
 import { externalApiRateLimit } from '../../lib/rate-limit.config.js';
@@ -34,7 +35,10 @@ export default async function marketsRoutes(fastify: FastifyInstance) {
 
   // Get all categories (must come before /:id to avoid matching)
   fastify.get('/categories', getCategoriesHandler);
-  
+
+  // Get market count (must come before /:id to avoid matching)
+  fastify.get('/count', getMarketCountHandler);
+
   // Get markets by category (must come before /:id)
   fastify.get('/category/:category', getMarketsByCategoryHandler);
   

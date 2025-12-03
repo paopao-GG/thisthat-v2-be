@@ -77,28 +77,35 @@ function extractStaticData(market: PolymarketMarket) {
     // Use first tag as category if available
     category = market.tags[0];
   }
-  
+
   if (!category) {
     // Derive category from title/description keywords
+    // Priority order matters - more specific categories checked first
     const titleLower = (market.question || '').toLowerCase();
     const descLower = (market.description || '').toLowerCase();
     const combined = `${titleLower} ${descLower}`;
-    
-    // Category keywords mapping
-    if (combined.match(/\b(politics|election|president|senate|congress|trump|biden|democrat|republican)\b/)) {
+
+    // Category keywords mapping (in priority order)
+    if (combined.match(/\b(election|vote|voting|ballot|primary|presidential race|electoral|midterm)\b/)) {
+      category = 'elections';
+    } else if (combined.match(/\b(trump|biden|congress|senate|house|governor|supreme court|white house|politics|political)\b/)) {
       category = 'politics';
-    } else if (combined.match(/\b(crypto|bitcoin|ethereum|blockchain|defi|nft|token)\b/)) {
-      category = 'crypto';
-    } else if (combined.match(/\b(sports|football|basketball|soccer|nfl|nba|mlb|soccer|championship|super bowl)\b/)) {
-      category = 'sports';
-    } else if (combined.match(/\b(economy|recession|inflation|fed|rate|gdp|unemployment|stock market)\b/)) {
+    } else if (combined.match(/\b(china|russia|europe|asia|africa|middle east|israel|palestine|iran|korea|war|military|conflict|nato|ukraine)\b/)) {
+      category = 'international';
+    } else if (combined.match(/\b(company|ceo|merger|acquisition|revenue|earnings|ipo|startup|business|corporate)\b/)) {
+      category = 'business';
+    } else if (combined.match(/\b(economy|recession|inflation|fed|interest rate|gdp|unemployment|stock market|jobs|economic)\b/)) {
       category = 'economics';
-    } else if (combined.match(/\b(weather|climate|temperature|rain|snow|hurricane|tornado)\b/)) {
-      category = 'weather';
-    } else if (combined.match(/\b(entertainment|movie|tv|celebrity|award|oscar|grammy)\b/)) {
-      category = 'entertainment';
-    } else if (combined.match(/\b(technology|ai|tech|software|hardware|apple|google|microsoft)\b/)) {
+    } else if (combined.match(/\b(technology|ai|artificial intelligence|tech|software|hardware|apple|google|microsoft|openai|tesla|spacex)\b/)) {
       category = 'technology';
+    } else if (combined.match(/\b(crypto|bitcoin|ethereum|blockchain|defi|nft|token|coinbase|binance)\b/)) {
+      category = 'crypto';
+    } else if (combined.match(/\b(sports|football|basketball|soccer|nfl|nba|mlb|championship|super bowl|olympics|fifa)\b/)) {
+      category = 'sports';
+    } else if (combined.match(/\b(entertainment|movie|tv|celebrity|award|oscar|grammy|netflix|streaming)\b/)) {
+      category = 'entertainment';
+    } else if (combined.match(/\b(science|research|study|discovery|space|nasa|physics|biology|scientific)\b/)) {
+      category = 'science';
     } else {
       // Default category
       category = 'general';
@@ -131,9 +138,10 @@ export async function ingestMarketsFromPolymarket(options?: {
   category?: string;
 }): Promise<MarketIngestionResult> {
   const client = getPolymarketClient();
-  const limit = options?.limit ?? 1000;
+  const totalTarget = options?.limit ?? 1000;
   const activeOnly = options?.activeOnly ?? true;
   const categoryFilter = options?.category?.toLowerCase();
+  const maxPageSize = Number(process.env.POLYMARKET_PAGE_SIZE) || 50; // Gamma API returns 50 per page
 
   const result: MarketIngestionResult = {
     total: 0,
@@ -145,58 +153,73 @@ export async function ingestMarketsFromPolymarket(options?: {
 
   try {
     console.log('[Market Ingestion] Fetching markets from Polymarket...');
+    console.log(`[Market Ingestion] Parameters: limit=${totalTarget}, activeOnly=${activeOnly}, category=${categoryFilter ?? 'ALL'}, pageSize=${maxPageSize}`);
 
     // Retry API call with exponential backoff and circuit breaker
     const { executeWithFailover, circuitBreakers } = await import('../lib/error-handler.js');
-    const markets = await executeWithFailover(
-      () =>
-        circuitBreakers.polymarket.execute(
-          () => client.getMarkets({
-            closed: !activeOnly, // false = active markets
-            limit,
-            offset: 0,
-          })
-        ),
-      {
-        circuitBreaker: circuitBreakers.polymarket,
-        retryOptions: {
-          maxRetries: 3,
-          initialDelayMs: 1000,
-          maxDelayMs: 10000,
-        },
-        serviceName: 'Polymarket Market Ingestion',
-        fallback: async () => {
-          console.warn('[Market Ingestion] Polymarket API unavailable, returning empty result');
-          return [];
-        },
+
+    let offset = 0;
+    let fetchedCount = 0;
+
+    // When filtering by category, we need to fetch MORE markets since most will be filtered out
+    // Rough category distribution: sports (40%), general (25%), politics (20%), others (15%)
+    // So to get 1000 markets in a specific category, we might need to fetch 5000-10000 total
+    const fetchMultiplier = categoryFilter ? 10 : 1; // Fetch 10x more when filtering by category
+    const adjustedTarget = Math.min(totalTarget * fetchMultiplier, 5000); // Cap at 5000 to avoid overwhelming
+
+    while (fetchedCount < adjustedTarget && result.total < totalTarget) {
+      const remaining = adjustedTarget - fetchedCount;
+      const batchSize = Math.min(remaining, maxPageSize);
+
+      console.log(`[Market Ingestion] Fetching batch: offset=${offset}, batchSize=${batchSize}`);
+
+      const markets = await executeWithFailover(
+        () =>
+          circuitBreakers.polymarket.execute(
+            () => client.getMarkets({
+              closed: !activeOnly, // false = active markets
+              limit: batchSize,
+              offset,
+            })
+          ),
+        {
+          circuitBreaker: circuitBreakers.polymarket,
+          retryOptions: {
+            maxRetries: 3,
+            initialDelayMs: 1000,
+            maxDelayMs: 10000,
+          },
+          serviceName: 'Polymarket Market Ingestion',
+          fallback: async () => {
+            console.warn('[Market Ingestion] Polymarket API unavailable, returning empty result');
+            return [];
+          },
+        }
+      ) || [];
+      
+      console.log(`[Market Ingestion] API returned ${Array.isArray(markets) ? markets.length : 'non-array'} markets for offset ${offset}`);
+
+      if (!Array.isArray(markets)) {
+        console.error(
+          '[Market Ingestion] Invalid response from Polymarket API - expected array, received:',
+          markets
+        );
+        break;
       }
-    ) || [];
 
-    if (!Array.isArray(markets)) {
-      console.error(
-        '[Market Ingestion] Invalid response from Polymarket API - expected array, received:',
-        markets
+      if (markets.length === 0) {
+        console.warn('[Market Ingestion] Polymarket returned 0 markets for this batch. Ending pagination early.');
+        break;
+      }
+
+      fetchedCount += markets.length;
+      offset += markets.length;
+
+      console.log(
+        `[Market Ingestion] Processing ${markets.length} markets from batch (filtering for category: ${categoryFilter || 'ALL'})`
       );
-      return result;
-    }
 
-    let filteredMarkets = markets;
-    if (categoryFilter) {
-      filteredMarkets = markets.filter(
-        (market) => (market.category || '').toLowerCase() === categoryFilter
-      );
-    }
-
-    result.total = filteredMarkets.length;
-    console.log(
-      `[Market Ingestion] Fetched ${filteredMarkets.length} markets (limit=${limit}, activeOnly=${activeOnly}, category=${categoryFilter ?? 'ALL'})`
-    );
-
-    if (filteredMarkets.length === 0) {
-      console.warn('[Market Ingestion] Polymarket returned 0 markets. Possible causes: credit limit reached, API throttling, or upstream outage.');
-    }
-
-    for (const market of filteredMarkets) {
+      for (const market of markets) {
       let staticData: any = null;
       try {
         staticData = extractStaticData(market);
@@ -206,6 +229,14 @@ export async function ingestMarketsFromPolymarket(options?: {
           result.skipped++;
           continue;
         }
+
+        // Filter by category AFTER we've categorized the market
+        if (categoryFilter && staticData.category !== categoryFilter) {
+          result.skipped++;
+          continue;
+        }
+
+        result.total++;
 
         // Check if market exists
         const existing = await prisma.market.findUnique({
@@ -247,10 +278,16 @@ export async function ingestMarketsFromPolymarket(options?: {
         result.errors++;
         // Continue processing other markets even if one fails
       }
+      }
+
+      if (markets.length < batchSize) {
+        console.log('[Market Ingestion] Received fewer markets than requested, assuming end of data');
+        break;
+      }
     }
 
     console.log(
-      `[Market Ingestion] Complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.errors} errors`
+      `[Market Ingestion] Complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.errors} errors (total processed: ${result.total})`
     );
     return result;
   } catch (error: any) {

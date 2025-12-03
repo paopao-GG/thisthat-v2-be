@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npm run test:run:*)",
       "Bash(npm test:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(npx tsx:*)",
+      "Bash(curl:*)",
+      "Bash(npm run stats:*)",
+      "Bash(npm run list:categories:*)",
+      "Bash(npm run test:prefetch:*)",
+      "Bash(timeout 30 npx tsx:*)"
     ],
     "deny": [],
     "ask": []

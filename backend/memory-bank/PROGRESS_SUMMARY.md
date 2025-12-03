@@ -10,7 +10,8 @@
 - ✅ Phase 5: Economy System - **100% Complete** (Daily credits PRD-aligned, Stock market, Transaction signing)
 - ✅ Phase 6: Market Resolution & Payout Processing - **100% Complete**
 - ✅ Phase 7: Leaderboard System - **100% Complete**
-- ✅ MongoDB ↔ PostgreSQL Sync - **100% Complete**
+- ✅ Database Separation - **100% Complete** (Two PostgreSQL databases: markets and users)
+- ✅ MongoDB Removed - **100% Complete** (No longer needed, fully migrated to PostgreSQL)
 - ✅ Redis Caching - **100% Complete** (optional, graceful fallback)
 - ✅ Credit Transactions - **100% Complete**
 - ✅ **Unit Test Suite - 100% Complete** (222 tests, all V1 features covered)

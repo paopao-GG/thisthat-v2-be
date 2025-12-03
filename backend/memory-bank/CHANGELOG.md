@@ -2,6 +2,106 @@
 
 All notable changes to the THISTHAT Backend project will be documented in this file.
 
+## [V1.0.10] - 2025-01-XX - Database Separation & Frontend Integration
+
+### ✅ Added - Database Separation
+- **Two PostgreSQL Databases**
+  - Created `thisthat_markets` database for market data storage
+  - Created `thisthat_users` database for user data, bets, and transactions
+  - Complete separation of concerns for scalability
+
+- **Prisma Schema Split**
+  - `schema.markets.prisma` - Market model with markets database connection
+  - `schema.users.prisma` - User, Bet, CreditTransaction, OAuthAccount, Referral, Purchase models
+  - Separate Prisma client generation for each database
+
+- **Database Client Updates**
+  - `marketsPrisma` client for market operations
+  - `usersPrisma` client for user/bet/transaction operations
+  - Updated all services to use correct database client:
+    - `markets.services.ts` - Uses `marketsPrisma`
+    - `betting.services.ts` - Uses both clients (markets for lookup, users for bets)
+    - `market-resolution.services.ts` - Uses both clients
+    - All auth, user, economy, transaction services - Use `usersPrisma`
+
+- **MongoDB Removal**
+  - Completely removed MongoDB dependency
+  - Removed `mongodb` package from `package.json`
+  - Deleted `src/lib/mongodb.ts`
+  - Converted MongoDB sync functions to no-op with deprecation warnings
+  - All market data now stored in PostgreSQL
+
+- **Migration Documentation**
+  - Created `MIGRATION_NOTES.md` with detailed migration steps
+  - Created `docs/CREATE_DATABASES.md` with database creation guide
+  - Created `docs/CREATE_DATABASES_WINDOWS.md` for Windows-specific instructions
+  - Created PowerShell and Bash scripts for database creation
+
+### ✅ Added - Frontend Market Integration
+- **Removed Mock Data**
+  - Removed mock data fallback from `BettingPage.tsx`
+  - Frontend now exclusively uses real API data
+
+- **Auto-Trigger Market Ingestion**
+  - Frontend automatically triggers market ingestion when no markets found
+  - Added loading states during ingestion
+  - Prevents infinite loops with ref-based tracking
+
+- **Market Type Mapping**
+  - Fixed `marketType` mapping in `marketService.ts`:
+    - `'polymarket'` or `'credits'` → `'binary'`
+    - `'cross'` → `'two-image'`
+  - Proper Decimal-to-number conversion for odds and liquidity
+
+- **Improved Error Handling**
+  - Clear error messages when markets unavailable
+  - Retry logic after ingestion completes
+  - Better loading states for ingestion process
+
+### 🔧 Changed
+- **Environment Variables**
+  - Added `MARKETS_DATABASE_URL` for markets database connection
+  - Added `USERS_DATABASE_URL` for users database connection
+  - `DATABASE_URL` kept as legacy alias to `USERS_DATABASE_URL`
+  - Removed `MONGODB_URL` and `MONGODB_DB_NAME`
+
+- **Package Scripts**
+  - Updated `db:generate` to generate both Prisma clients
+  - Updated `db:push` to push both schemas
+
+### 📝 Documentation
+- Added comprehensive migration documentation
+- Added database creation guides for multiple platforms
+- Updated environment variable documentation
+
+## [V1.0.9] - 2025-01-XX - Error Handling & Failover
+
+### ✅ Added - Comprehensive Error Handling
+- **Circuit Breaker Pattern**
+  - Implemented for external API calls (Polymarket)
+  - Prevents cascading failures
+  - Automatic recovery after cooldown period
+
+- **Retry Logic with Exponential Backoff**
+  - Retry utilities in `src/lib/retry.ts`
+  - Configurable retry attempts and delays
+  - Applied to all critical operations
+
+- **Structured Error Responses**
+  - Standardized error response format
+  - Error classification (network, rate limit, validation, database, etc.)
+  - Detailed error information for debugging
+
+- **Graceful Degradation**
+  - Fallback to cached/stored data when external APIs fail
+  - Transaction rollback on betting failures
+  - Circuit breaker protection for Polymarket API
+
+### 🔧 Changed
+- Enhanced all controllers with consistent error handling
+- Polymarket client wrapped with circuit breaker and retry logic
+- Improved error messages and logging
+
 ## [V1.0.8] - 2025-01-XX - Rate Limiting Implementation
 
 ### ✅ Added - Rate Limiting System
