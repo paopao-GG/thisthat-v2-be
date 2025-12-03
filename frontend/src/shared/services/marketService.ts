@@ -65,13 +65,15 @@ export async function getMarkets(options?: GetMarketsOptions): Promise<Market[]>
         description: market.description || '',
         thisOption: market.thisOption || 'YES',
         thatOption: market.thatOption || 'NO',
-        thisOdds: market.thisOdds || 0.5,
-        thatOdds: market.thatOdds || 0.5,
+        // Convert Decimal to number if needed, ensure valid odds
+        thisOdds: typeof market.thisOdds === 'number' ? market.thisOdds : (market.thisOdds ? Number(market.thisOdds) : 0.5),
+        thatOdds: typeof market.thatOdds === 'number' ? market.thatOdds : (market.thatOdds ? Number(market.thatOdds) : 0.5),
         expiryDate: market.expiresAt ? new Date(market.expiresAt) : new Date(),
         category: market.category || 'general', // Keep lowercase to match backend
-        liquidity: market.liquidity || 0,
+        liquidity: typeof market.liquidity === 'number' ? market.liquidity : (market.liquidity ? Number(market.liquidity) : 0),
         imageUrl: market.imageUrl || undefined,
-        marketType: 'binary' as const,
+        // Map marketType from backend: 'polymarket' -> 'binary', 'credits' -> 'binary', 'cross' -> 'two-image'
+        marketType: market.marketType === 'cross' ? 'two-image' : 'binary',
       }));
     }
     

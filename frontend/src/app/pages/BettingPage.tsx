@@ -272,6 +272,7 @@ const BettingPage: React.FC = () => {
   const [viewedMarketIds, setViewedMarketIds] = useState<Set<string>>(new Set());
   const [ingestingCategory, setIngestingCategory] = useState(false);
   const categoryIngestAttemptsRef = useRef<Set<string>>(new Set());
+  const initialIngestionAttemptedRef = useRef(false);
   
   const getCategoryParam = useCallback(
     (category: string) => {
@@ -425,11 +426,38 @@ const BettingPage: React.FC = () => {
         setIsFetchingMore(false);
 
         if (marketsWithImages.length === 0) {
-          console.warn('No markets fetched from backend, using mock data');
-          const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
-          setMarkets(mockMarketsWithImages);
+          console.warn('No markets fetched from backend');
+          // Don't use mock data - trigger ingestion instead
+          setMarkets([]);
           setHasMoreMarkets(false);
-          setSkip(mockMarketsWithImages.length);
+          setSkip(0);
+          
+          // Trigger initial ingestion if we have no markets at all (only once)
+          if (markets.length === 0 && !ingestingCategory && !initialIngestionAttemptedRef.current) {
+            initialIngestionAttemptedRef.current = true;
+            console.log('No markets found, triggering initial ingestion...');
+            try {
+              setIngestingCategory(true);
+              await ingestMarkets({ limit: PAGE_SIZE });
+              // Retry fetching after ingestion
+              const retryMarkets = await fetchMarketsBatch(categoryParam, 0);
+              if (retryMarkets.length > 0) {
+                setMarkets(retryMarkets);
+                setSkip(retryMarkets.length);
+                setHasMoreMarkets(retryMarkets.length === PAGE_SIZE);
+              } else {
+                setError('No markets available after ingestion. The database may be empty or the Polymarket API may be unavailable.');
+              }
+            } catch (ingestError) {
+              console.error('Failed to ingest markets:', ingestError);
+              setError('No markets available. Please try again later.');
+            } finally {
+              setIngestingCategory(false);
+            }
+          } else if (markets.length === 0 && initialIngestionAttemptedRef.current) {
+            // If we've already tried ingestion and still have no markets, show error
+            setError('No markets available. Please check your database connection or try refreshing.');
+          }
         } else {
           setMarkets(marketsWithImages);
           setSkip(marketsWithImages.length);
@@ -441,10 +469,10 @@ const BettingPage: React.FC = () => {
         }
         console.error('Failed to fetch markets:', err);
         setError(err.message || 'Failed to load markets');
-        const mockMarketsWithImages = addImagesToMarkets(mockMarketsBase);
-        setMarkets(mockMarketsWithImages);
+        // Don't use mock data on error - show error state instead
+        setMarkets([]);
         setHasMoreMarkets(false);
-        setSkip(mockMarketsWithImages.length);
+        setSkip(0);
       } finally {
         if (fetchId === fetchControllerRef.current) {
           if (showGlobalLoading) {
@@ -455,7 +483,7 @@ const BettingPage: React.FC = () => {
         }
       }
     },
-    [addImagesToMarkets, fetchMarketsBatch, categoryFilter, getCategoryParam]
+    [addImagesToMarkets, fetchMarketsBatch, categoryFilter, getCategoryParam, markets.length, ingestingCategory]
   );
 
   // Initial load & when category changes (even though currently disregarded)
@@ -624,10 +652,12 @@ const BettingPage: React.FC = () => {
   const safeDefaultBetAmount = Math.min(defaultBetAmount, maxCredits);
 
   // Show loading state only if we have no markets at all
-  if (loading && markets.length === 0) {
+  if ((loading || ingestingCategory) && markets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full p-3 pt-4">
-        <div className="text-white/60">Loading markets...</div>
+        <div className="text-white/60">
+          {ingestingCategory ? 'Fetching markets from Polymarket...' : 'Loading markets...'}
+        </div>
       </div>
     );
   }
