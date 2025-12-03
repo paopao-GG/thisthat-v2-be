@@ -1,3 +1,20 @@
+# [V1.0.11] - 2025-01-XX - Polymarket Ingestion Scaling
+
+### ✅ Added - Multi-page ingestion & smarter categorisation
+- **Pagination Support**
+  - Market ingestion now pages through the Polymarket Gamma API in batches (default 50) until it hits `MARKET_INGEST_LIMIT` (default 1000).
+  - Automatically increases the fetch window when a category filter is applied (up to 10x) and stops early if the API stops returning results.
+  - Ensures the `markets` table is saturated with fresh static data so the frontend never falls back to mock markets.
+
+- **Category Enhancements**
+  - Expanded keyword detection (elections, business, international, technology, science, etc.) to improve downstream category filters.
+  - Filtering now happens **after** the new category is assigned, reducing false negatives.
+
+### 🔧 Changed
+- Added environment variables `MARKET_INGEST_LIMIT` (default 1000) and optional `POLYMARKET_PAGE_SIZE` for tuning batch sizes.
+- Updated ingestion logs for better observability (batch offsets, filtered totals, category info).
+- `scripts/test-ingestion.ts` now exercises the pagination logic to validate local setups.
+
 # Changelog
 
 All notable changes to the THISTHAT Backend project will be documented in this file.

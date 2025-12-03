@@ -93,6 +93,19 @@
   - `handleIngestCategory()` uses normalized category names when fetching new markets
   - Category filtering works seamlessly with backend API
 
+### Polymarket Ingestion Scaling - Complete (2025-01-XX)
+- ✅ **Multi-Page Fetching**
+  - Market ingestion now paginates through Gamma API results (default 50 per page) until it reaches `MARKET_INGEST_LIMIT` (default 1000).
+  - Category-filtered ingests automatically fetch up to 10× more raw markets (capped at 5000) before filtering so niche categories don’t run dry.
+- ✅ **Smarter Categorisation**
+  - Expanded keyword detection (elections, business, international, science, etc.).
+  - Category filtering happens after classification, reducing false negatives and ensuring the DB stays balanced.
+- ✅ **Environment & Observability**
+  - Added `MARKET_INGEST_LIMIT` (and optional `POLYMARKET_PAGE_SIZE`) to `.env`.
+  - Ingestion logs now show batch offsets, page sizes, and per-category processing totals.
+- ✅ **Tooling**
+  - `scripts/test-ingestion.ts` validates pagination locally, making it easy to confirm DB writes before running the server.
+
 ### Leaderboard Page - Functional (2025-01-XX)
 - ✅ **Leaderboard Service Created**
   - Created `frontend/src/shared/services/leaderboardService.ts`

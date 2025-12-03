@@ -97,14 +97,17 @@
 - ✅ Market ingestion by category exists (`ingestMarketsFromPolymarket` with category filter)
 - ✅ Category-based market fetching (`getMarketsByCategory`)
 - ✅ Frontend detects low markets and triggers ingestion (`BettingPage.tsx`)
+- ✅ Background job for market ingestion (every 5 minutes)
+- ✅ **NEW (2025-01-XX):** Ingestion now paginates through multiple Polymarket pages (default page size 50, up to `MARKET_INGEST_LIMIT` = 1000) so the database is always stocked with fresh markets.
+- ✅ **NEW:** Category classification happens before filtering, with expanded keyword detection (elections, business, international, science, etc.).
 - ⚠️ No automatic background prefetching per category
 - ⚠️ No message queue for prefetching
 - ⚠️ No proactive monitoring of category market counts
 
 **What Exists:**
-- `backend/src/services/market-ingestion.service.ts` - Category filtering in ingestion
+- `backend/src/services/market-ingestion.service.ts` - Pagination + category support
 - `backend/src/features/markets/markets.services.ts` - `getMarketsByCategory()` function
-- `frontend/src/app/pages/BettingPage.tsx` - Auto-ingest when category exhausted (lines 582-592)
+- `frontend/src/app/pages/BettingPage.tsx` - Auto-ingest when category exhausted
 - Background job for market ingestion (every 5 minutes)
 
 **What's Missing:**
@@ -115,9 +118,9 @@
 - Proactive prefetching before categories run out
 
 **Files to Check:**
-- `backend/src/services/market-ingestion.service.ts` - ✅ Category support
-- `backend/src/jobs/market-ingestion.job.ts` - ✅ Background job exists
-- `frontend/src/app/pages/BettingPage.tsx` - ✅ Auto-ingest on low markets
+- `backend/src/services/market-ingestion.service.ts`
+- `backend/src/jobs/market-ingestion.job.ts`
+- `frontend/src/app/pages/BettingPage.tsx`
 
 ---
 

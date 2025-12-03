@@ -89,9 +89,11 @@
 
 - Implement continuous prefetching so every category does not run out of markets.
 - When the system detects that markets for a specific category are running low for a user, it will prefetch more.
-- Requirements:
+- ✅ **Progress:** Polymarket ingestion now paginates up to `MARKET_INGEST_LIMIT` (default 1000) with smarter category classification, so the markets DB is always saturated with the latest static data.
+- Requirements still outstanding:
   - **Caching**: prefetched data is cached.
   - **Message queue**: if there's an error in fetching/prefetching, a message queue will handle retries and recovery.
+  - **Background monitor**: automatically request new category batches before users run out.
 - **Why Fifth:** Basic prefetching exists, but needs automatic background monitoring and message queue for reliability.
 
 ---
