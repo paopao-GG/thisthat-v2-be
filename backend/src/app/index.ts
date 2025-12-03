@@ -132,7 +132,7 @@ fastify.setErrorHandler(async (error, request, reply) => {
   
   fastify.log.error({ 
     error: structuredError, 
-    stack: error.stack,
+    stack: error instanceof Error ? error.stack : undefined,
     url: request.url,
     method: request.method,
   });

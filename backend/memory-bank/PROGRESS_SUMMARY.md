@@ -106,6 +106,15 @@
 - ✅ **Tooling**
   - `scripts/test-ingestion.ts` validates pagination locally, making it easy to confirm DB writes before running the server.
 
+### Sell Position Reliability - Complete (2025-01-XX)
+- ✅ **Two-Phase Sell Flow**
+  - Polymarket live odds are fetched *before* the database transaction so HTTP latency no longer blocks Prisma.
+  - Transactions now only touch the bet, user balance, and credit transaction which eliminates the “Failed to sell position after retries” error under load.
+- ✅ **Cleaner Odds Helper**
+  - Introduced `getCurrentOddsForBet` for reuse and clearer logging/fallback handling.
+- ✅ **Consistent Balances**
+  - User credit updates use atomic increments and the response payload now includes fresh market metadata without cross-database relations.
+
 ### Leaderboard Page - Functional (2025-01-XX)
 - ✅ **Leaderboard Service Created**
   - Created `frontend/src/shared/services/leaderboardService.ts`

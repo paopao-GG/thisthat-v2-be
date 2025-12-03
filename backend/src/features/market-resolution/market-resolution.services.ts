@@ -130,8 +130,9 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
             
             if (isWinner) {
               // Winning bet - credit payout
-              const payout = bet.potentialPayout;
-              const profit = payout - bet.amount;
+              const payout = Number(bet.potentialPayout);
+              const betAmount = Number(bet.amount);
+              const profit = payout - betAmount;
 
               await tx.user.update({
                 where: { id: bet.userId },

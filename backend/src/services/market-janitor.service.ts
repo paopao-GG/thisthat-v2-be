@@ -8,10 +8,13 @@
  * - Cleans up old resolved markets (optional archival)
  */
 
-import { prisma } from '../lib/database.js';
+import { prisma, usersPrisma } from '../lib/database.js';
 import { getPolymarketClient } from '../lib/polymarket-client.js';
 import { settlePositionsForMarket } from '../features/positions/positions.services.js';
 import { retryWithBackoffSilent } from '../lib/retry.js';
+
+// Transaction client type for Prisma
+type TransactionClient = Parameters<Parameters<typeof usersPrisma.$transaction>[0]>[0];
 
 export interface JanitorResult {
   checkedMarkets: number;
@@ -137,7 +140,7 @@ async function processMarketPayouts(
     try {
       if (resolution === 'invalid') {
         // Refund the bet
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: TransactionClient) => {
           // Update bet status
           await tx.bet.update({
             where: { id: bet.id },
@@ -173,7 +176,7 @@ async function processMarketPayouts(
 
         if (betWon) {
           // Process winning bet
-          await prisma.$transaction(async (tx) => {
+          await prisma.$transaction(async (tx: TransactionClient) => {
             // Update bet status
             await tx.bet.update({
               where: { id: bet.id },
@@ -216,7 +219,7 @@ async function processMarketPayouts(
           });
         } else {
           // Process losing bet
-          await prisma.$transaction(async (tx) => {
+          await prisma.$transaction(async (tx: TransactionClient) => {
             // Update bet status
             await tx.bet.update({
               where: { id: bet.id },

@@ -34,7 +34,7 @@
 
 - ✅ Implemented robust error handling and failover for all features:
   - ✅ Failed to bet - Retry logic with exponential backoff, transaction rollback on failure
-  - ✅ Failed to sell - Circuit breaker + retry with fallback to stored odds
+  - ✅ Failed to sell - Circuit breaker + retry with fallback to stored odds, plus transaction refactor so Polymarket live price fetch happens **outside** the Prisma transaction (prevents deadlocks/timeouts)
   - ✅ Failed to fetch market - Circuit breaker pattern, graceful degradation (returns null)
   - ✅ Polymarket API rate/usage limits - Automatic retry with exponential backoff, circuit breaker protection
   - ✅ Other API or network failures - Comprehensive retry logic, structured error responses
@@ -83,18 +83,16 @@
 ---
 
 ## 5. **Continuous Prefetching per Category** 🟡 MEDIUM PRIORITY
-**Status:** 🔄 Partially Done  
+**Status:** ✅ Accomplished  
 **Impact:** User Experience  
 **Effort:** Medium (4-5 hours)
 
-- Implement continuous prefetching so every category does not run out of markets.
-- When the system detects that markets for a specific category are running low for a user, it will prefetch more.
-- ✅ **Progress:** Polymarket ingestion now paginates up to `MARKET_INGEST_LIMIT` (default 1000) with smarter category classification, so the markets DB is always saturated with the latest static data.
-- Requirements still outstanding:
-  - **Caching**: prefetched data is cached.
-  - **Message queue**: if there's an error in fetching/prefetching, a message queue will handle retries and recovery.
-  - **Background monitor**: automatically request new category batches before users run out.
-- **Why Fifth:** Basic prefetching exists, but needs automatic background monitoring and message queue for reliability.
+- ✅ Continuous background monitoring job (`category-prefetch.job.ts`) detects low-count categories every 5 minutes.
+- ✅ Redis-backed prefetch queue (`prefetch-queue.service.ts`) with retries, backoff, and dead-letter handling keeps ingestion resilient.
+- ✅ Category cache service ensures prefetched batches are stored in Redis for instant delivery to clients.
+- ✅ Manual triggers now wait for queue completion (better DX for scripts/admin tools).
+- ✅ Env toggles for cache TTL, queue retries, concurrency, and manual timeout documented in `backend/env.template`.
+- **Why Fifth:** Ensures users never run out of fresh markets per category without manual intervention.
 
 ---
 

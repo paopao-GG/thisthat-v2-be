@@ -8,8 +8,11 @@
 
 import { marketsPrisma } from '../../lib/database.js';
 import { getPolymarketClient } from '../../lib/polymarket-client.js';
-import { retryWithBackoffSilent } from '../../lib/retry.js';
 import { executeWithFailover, circuitBreakers, createStructuredError } from '../../lib/error-handler.js';
+import {
+  cacheCategoryMarkets,
+  getCachedCategoryMarkets,
+} from '../../services/category-cache.service.js';
 
 export interface MarketStaticData {
   id: string;
@@ -98,6 +101,11 @@ export async function getMarkets(options?: {
   skip?: number;
 }): Promise<MarketStaticData[]> {
   const where: any = {};
+  const normalizedCategory = options?.category?.toLowerCase();
+  const limit = options?.limit || 100;
+  const skip = options?.skip || 0;
+  const shouldUseCategoryCache =
+    !!normalizedCategory && skip === 0 && (!options?.status || options.status === 'open');
   
   if (options?.status) {
     where.status = options.status;
@@ -107,10 +115,17 @@ export async function getMarkets(options?: {
     where.category = { equals: options.category, mode: 'insensitive' };
   }
 
+  if (shouldUseCategoryCache) {
+    const cached = await getCachedCategoryMarkets<MarketStaticData>(normalizedCategory!, limit);
+    if (cached && cached.markets.length > 0) {
+      return cached.markets;
+    }
+  }
+
   const markets = await marketsPrisma.market.findMany({
     where,
-    take: options?.limit || 100,
-    skip: options?.skip || 0,
+    take: limit,
+    skip,
     orderBy: { updatedAt: 'desc' },
     select: {
       id: true,
@@ -129,7 +144,7 @@ export async function getMarkets(options?: {
     },
   });
 
-  return markets.map(m => ({
+  const mapped = markets.map(m => ({
     id: m.id,
     polymarketId: m.polymarketId,
     title: m.title,
@@ -147,6 +162,12 @@ export async function getMarkets(options?: {
     liquidity: m.liquidity ? Number(m.liquidity) : undefined,
     marketType: m.marketType,
   })) as MarketStaticData[];
+
+  if (shouldUseCategoryCache && mapped.length > 0) {
+    await cacheCategoryMarkets(normalizedCategory!, mapped);
+  }
+
+  return mapped;
 }
 
 /**

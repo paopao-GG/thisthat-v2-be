@@ -1,3 +1,19 @@
+# [V1.0.12] - 2025-01-XX - Sell Position Reliability
+
+### ✅ Changed
+- **Sell Position Flow**
+  - Live price fetch (Polymarket) now happens before opening a Prisma transaction so long-running HTTP calls no longer keep DB locks open.
+  - The transaction only updates the bet, user balance, and credit transaction—huge reduction in deadlocks/timeouts (previously surfaced as “Failed to sell position after retries”).
+  - Added helper `getCurrentOddsForBet` for reuse and clarity.
+
+- **User Credit Updates**
+  - Uses `increment` operations so balances stay accurate even under concurrent sells.
+  - Returns updated bet + market metadata without relying on cross-database relations.
+
+### 🧪 Testing & Tooling
+- Manual sell flows now succeed immediately; no more silent retries or 500s under load.
+- Logs clearly differentiate external API failures vs transaction errors.
+
 # [V1.0.11] - 2025-01-XX - Polymarket Ingestion Scaling
 
 ### ✅ Added - Multi-page ingestion & smarter categorisation

@@ -26,10 +26,21 @@ The Category Prefetch System automatically maintains sufficient markets across a
 2. **Category Prefetch Job** (`src/jobs/category-prefetch.job.ts`)
    - Runs every 5 minutes via cron
    - Checks all categories automatically
-   - Triggers prefetch for low categories
-   - Prevents concurrent runs
+   - Enqueues prefetch tasks for low categories
+   - Supports manual runs that wait for queue completion
 
-3. **Market Ingestion Service** (`src/services/market-ingestion.service.ts`)
+3. **Prefetch Queue Service** (`src/services/prefetch-queue.service.ts`)
+   - Redis-backed queue with in-memory fallback
+   - Automatic retries with exponential backoff
+   - Dead-letter queue for exhausted attempts
+   - Concurrency + poll interval configurable
+
+4. **Category Cache Service** (`src/services/category-cache.service.ts`)
+   - Stores prefetched markets per category in Redis
+   - TTL/limit configurable (defaults: 5 minutes / 200 markets)
+   - Used by API before falling back to PostgreSQL
+
+5. **Market Ingestion Service** (`src/services/market-ingestion.service.ts`)
    - Fetches markets from Polymarket Gamma API
    - Supports category-specific filtering
    - Handles deduplication (update vs create)
@@ -50,6 +61,18 @@ PREFETCH_BATCH_SIZE=1000
 
 # Cron schedule for category monitoring (every 5 minutes)
 CATEGORY_PREFETCH_CRON=*/5 * * * *
+
+# Prefetch cache (Redis)
+CATEGORY_PREFETCH_CACHE_TTL_SECONDS=300
+CATEGORY_PREFETCH_CACHE_LIMIT=200
+
+# Prefetch queue
+PREFETCH_QUEUE_MAX_ATTEMPTS=3
+PREFETCH_QUEUE_RETRY_BASE_MS=30000
+PREFETCH_QUEUE_RETRY_BACKOFF_MULTIPLIER=2
+PREFETCH_QUEUE_POLL_INTERVAL_MS=1000
+PREFETCH_QUEUE_CONCURRENCY=1
+PREFETCH_QUEUE_MANUAL_TIMEOUT_MS=180000
 ```
 
 ### Categories Monitored
@@ -69,11 +92,13 @@ The system monitors 8 categories:
 ### Automatic Prefetch Cycle
 
 1. **Every 5 minutes**, the job wakes up
-2. **Checks** all 8 categories
-3. **Identifies** categories below 500 markets
-4. **Fetches** 1,000 markets for each low category
-5. **Stops** when category reaches 10,000 (capacity)
-6. **Logs** detailed statistics
+2. **Checks** all monitored categories
+3. **Identifies** categories below the minimum threshold
+4. **Enqueues** queue tasks with fetch volumes tuned per category
+5. **Queue workers** execute ingestion with retries + backoff
+6. **Caches** fresh markets in Redis for instant client access
+7. **Stops** when category reaches 10,000 (capacity)
+8. **Logs** detailed statistics + queue metrics
 
 ### Example Run
 
@@ -137,6 +162,20 @@ Output:
 # Manually trigger a prefetch cycle
 npm run test:prefetch
 ```
+
+## 💾 Caching & ⚙️ Queueing
+
+### Redis Category Cache
+- Stores up to 200 prefetched markets per category (configurable)
+- TTL defaults to 5 minutes (configurable)
+- API layer checks cache before hitting PostgreSQL when `skip=0`
+- Cache is automatically refreshed after every successful prefetch run
+
+### Prefetch Queue
+- Redis-backed queue with in-memory fallback when Redis is unavailable
+- Configurable retry attempts, base delay, backoff multiplier, concurrency, and poll interval
+- Failed tasks are retried with exponential backoff; exhausted tasks are moved to a dead-letter queue (`queue:prefetch:dead-letter:v1`)
+- Manual runs wait for the queue to finish (with timeout) so scripts receive deterministic feedback
 
 ## 🔧 Maintenance
 

@@ -60,8 +60,13 @@ export function normalizeMarket(polymarketData: PolymarketMarket): FlattenedMark
   // Parse end date (expiresAt)
   const endDateStr = polymarketData.endDateIso || polymarketData.end_date_iso;
 
+  const conditionId = polymarketData.conditionId || polymarketData.condition_id;
+  if (!conditionId) {
+    throw new Error('Market data is missing conditionId');
+  }
+
   return {
-    conditionId: polymarketData.conditionId || polymarketData.condition_id,
+    conditionId,
     questionId: polymarketData.questionID || polymarketData.question_id,
     marketSlug: polymarketData.marketSlug || polymarketData.market_slug,
 

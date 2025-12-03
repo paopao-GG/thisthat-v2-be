@@ -20,7 +20,12 @@ import {
   getSystemStats,
   CATEGORIES,
 } from '../services/category-monitor.service.js';
-import { ingestMarketsFromPolymarket } from '../services/market-ingestion.service.js';
+import {
+  enqueuePrefetchTask,
+  startPrefetchQueueWorker,
+  stopPrefetchQueueWorker,
+  waitForPrefetchTasks,
+} from '../services/prefetch-queue.service.js';
 
 let prefetchTask: cron.ScheduledTask | null = null;
 let isRunning = false;
@@ -28,7 +33,7 @@ let isRunning = false;
 /**
  * Run prefetch for categories that need it
  */
-async function runCategoryPrefetch(label: string) {
+async function runCategoryPrefetch(label: string, options?: { awaitCompletion?: boolean }) {
   if (isRunning) {
     console.log(`[Category Prefetch Job] Skipping ${label} run (already in progress)`);
     return;
@@ -38,6 +43,7 @@ async function runCategoryPrefetch(label: string) {
   const startTime = Date.now();
 
   try {
+    startPrefetchQueueWorker();
     console.log(`\n[Category Prefetch Job] ========== ${label.toUpperCase()} RUN ==========`);
 
     // Get system overview
@@ -76,9 +82,7 @@ async function runCategoryPrefetch(label: string) {
     );
 
     // Prefetch for each category that needs it
-    let totalCreated = 0;
-    let totalUpdated = 0;
-    let totalErrors = 0;
+    const enqueuedTaskIds: string[] = [];
 
     for (const category of categoriesToPrefetch) {
       const stat = categoryStats.find((s) => s.category === category);
@@ -95,22 +99,34 @@ async function runCategoryPrefetch(label: string) {
       );
 
       try {
-        const result = await ingestMarketsFromPolymarket({
-          limit: amountToFetch,
-          activeOnly: true,
-          category,
+        const task = await enqueuePrefetchTask(category, amountToFetch, {
+          reason: `${label}-run`,
         });
-
-        totalCreated += result.created;
-        totalUpdated += result.updated;
-        totalErrors += result.errors;
-
+        enqueuedTaskIds.push(task.id);
         console.log(
-          `[Category Prefetch Job] ✅ "${category}" complete: ${result.created} created, ${result.updated} updated, ${result.errors} errors`
+          `[Category Prefetch Job] 📨 Enqueued "${category}" (task ${task.id.slice(0, 8)}) for ${amountToFetch} markets`
         );
       } catch (error: any) {
-        console.error(`[Category Prefetch Job] ❌ Error prefetching "${category}":`, error.message);
-        totalErrors++;
+        console.error(
+          `[Category Prefetch Job] ❌ Failed to enqueue "${category}":`,
+          error?.message || error
+        );
+      }
+    }
+
+    if (options?.awaitCompletion && enqueuedTaskIds.length > 0) {
+      console.log(
+        `[Category Prefetch Job] ⏳ Waiting for ${enqueuedTaskIds.length} prefetch tasks to finish...`
+      );
+      try {
+        await waitForPrefetchTasks(enqueuedTaskIds);
+        console.log('[Category Prefetch Job] ✅ Manual prefetch tasks completed');
+      } catch (error: any) {
+        console.error(
+          '[Category Prefetch Job] ⚠️ Manual prefetch tasks did not complete:',
+          error?.message || error
+        );
+        throw error;
       }
     }
 
@@ -118,9 +134,10 @@ async function runCategoryPrefetch(label: string) {
     console.log(`\n[Category Prefetch Job] ========== SUMMARY ==========`);
     console.log(`  - Duration: ${duration}s`);
     console.log(`  - Categories processed: ${categoriesToPrefetch.length}`);
-    console.log(`  - Total created: ${totalCreated}`);
-    console.log(`  - Total updated: ${totalUpdated}`);
-    console.log(`  - Total errors: ${totalErrors}`);
+    console.log(`  - Tasks enqueued: ${enqueuedTaskIds.length}`);
+    if (!options?.awaitCompletion) {
+      console.log(`  - Processing continues asynchronously via queue worker`);
+    }
     console.log(`[Category Prefetch Job] ========== COMPLETE ==========\n`);
   } catch (error: any) {
     console.error('[Category Prefetch Job] Fatal error:', error?.message || error);
@@ -142,6 +159,7 @@ export function startCategoryPrefetchJob() {
   }
 
   try {
+    startPrefetchQueueWorker();
     // Run every 5 minutes
     const cronExpression = process.env.CATEGORY_PREFETCH_CRON || '*/5 * * * *';
     prefetchTask = cron.schedule(cronExpression, () => runCategoryPrefetch('scheduled'), {
@@ -178,11 +196,12 @@ export function stopCategoryPrefetchJob() {
     prefetchTask = null;
     console.log('[Category Prefetch Job] Scheduler stopped');
   }
+  stopPrefetchQueueWorker();
 }
 
 /**
  * Manually trigger prefetch (for testing/admin use)
  */
 export async function triggerManualPrefetch(): Promise<void> {
-  await runCategoryPrefetch('manual');
+  await runCategoryPrefetch('manual', { awaitCompletion: true });
 }

@@ -53,12 +53,30 @@ const PreLogin: React.FC = () => {
       {error && (
         <div className="relative z-10 w-full px-6 pt-4">
           <div className="max-w-md mx-auto p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
-            <p className="font-semibold mb-1">Login Failed</p>
-            <p className="mb-2">Error: {error}</p>
-            {errorDetails && (
+            <p className="font-semibold mb-1">
+              {error === 'oauth_denied' ? 'Sign In Cancelled' : 'Login Failed'}
+            </p>
+            <p className="mb-2">
+              {error === 'oauth_denied'
+                ? 'You cancelled the sign in process on X. Please try again to continue.'
+                : `Error: ${error}`
+              }
+            </p>
+            {errorDetails && error !== 'oauth_denied' && (
               <p className="text-xs mb-2 opacity-90 break-words">{errorDetails}</p>
             )}
-            <p className="text-xs mt-2 opacity-75">Please check the backend console for more details.</p>
+            {error !== 'oauth_denied' && (
+              <p className="text-xs mt-2 opacity-75">Please check the backend console for more details.</p>
+            )}
+            <button
+              onClick={() => {
+                setError(null);
+                setErrorDetails(null);
+              }}
+              className="mt-3 text-xs underline opacity-75 hover:opacity-100"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}

@@ -17,7 +17,8 @@ I've built a comprehensive **intelligent market prefetching system** that automa
 
 ✅ **Self-managing**
 - Runs in background without intervention
-- Prevents concurrent runs
+- Prefetch queue handles retries, backoff, and dead-lettering
+- Category cache keeps fresh markets in Redis for instant reads
 - Detailed logging and statistics
 
 ✅ **Production-ready**
@@ -33,6 +34,10 @@ Minimum per category:    500 markets
 Maximum per category:    10,000 markets
 Batch size:             1,000 markets per prefetch
 Check interval:         Every 5 minutes
+Prefetch cache TTL:     300 seconds (default)
+Prefetch cache size:    200 markets per category (default)
+Queue attempts:         3 (configurable)
+Queue backoff:          30s base × 2x multiplier
 Total capacity:         80,000 markets (8 × 10,000)
 ```
 
@@ -46,20 +51,28 @@ Total capacity:         80,000 markets (8 × 10,000)
 
 2. **`src/jobs/category-prefetch.job.ts`**
    - Automated cron job (every 5 minutes)
-   - Intelligent prefetch logic
+   - Intelligent prefetch logic + queue orchestration
    - Detailed logging
 
+3. **`src/services/prefetch-queue.service.ts`**
+   - Redis-backed queue with retries/backoff
+   - Manual wait helpers for scripts/admin tooling
+
+4. **`src/services/category-cache.service.ts`**
+   - Redis cache for prefetched category batches
+   - API uses cache-first strategy before hitting PostgreSQL
+
 ### Scripts
-3. **`scripts/show-category-stats.ts`**
+5. **`scripts/show-category-stats.ts`**
    - Dashboard view of category statistics
    - Run with: `npm run stats`
 
-4. **`scripts/test-category-prefetch.ts`**
+6. **`scripts/test-category-prefetch.ts`**
    - Manual prefetch trigger for testing
    - Run with: `npm run test:prefetch`
 
 ### Documentation
-5. **`docs/CATEGORY_PREFETCH_SYSTEM.md`**
+7. **`docs/CATEGORY_PREFETCH_SYSTEM.md`**
    - Complete system documentation
    - Configuration guide
    - Troubleshooting
@@ -70,7 +83,7 @@ Total capacity:         80,000 markets (8 × 10,000)
 # View current statistics (dashboard)
 npm run stats
 
-# Test prefetch manually
+# Test prefetch manually (waits for queue completion)
 npm run test:prefetch
 
 # Start backend (prefetch runs automatically)
@@ -106,9 +119,10 @@ npm run dev
 ### Every 5 Minutes:
 1. ✅ **Check** - Monitors all 8 categories
 2. ✅ **Identify** - Finds categories below 500 markets
-3. ✅ **Fetch** - Pulls 1,000 markets per low category from Polymarket
-4. ✅ **Store** - Saves to `thisthat_markets` database
-5. ✅ **Report** - Logs detailed statistics
+3. ✅ **Enqueue** - Sends queue tasks with dynamic fetch amounts
+4. ✅ **Prefetch** - Queue workers call Polymarket + refresh Redis cache
+5. ✅ **Store** - Saves static data to `thisthat_markets` database
+6. ✅ **Report** - Logs detailed statistics + queue status
 
 ### Status Indicators:
 - 🔴 **LOW** - Below 500 markets (needs prefetch)
@@ -123,6 +137,16 @@ MIN_MARKETS_PER_CATEGORY=500       # Trigger prefetch below this
 MAX_MARKETS_PER_CATEGORY=10000     # Stop prefetch at this limit
 PREFETCH_BATCH_SIZE=1000           # Markets per prefetch batch
 CATEGORY_PREFETCH_CRON=*/5 * * * * # Check every 5 minutes
+
+# Cache + Queue
+CATEGORY_PREFETCH_CACHE_TTL_SECONDS=300
+CATEGORY_PREFETCH_CACHE_LIMIT=200
+PREFETCH_QUEUE_MAX_ATTEMPTS=3
+PREFETCH_QUEUE_RETRY_BASE_MS=30000
+PREFETCH_QUEUE_RETRY_BACKOFF_MULTIPLIER=2
+PREFETCH_QUEUE_POLL_INTERVAL_MS=1000
+PREFETCH_QUEUE_CONCURRENCY=1
+PREFETCH_QUEUE_MANUAL_TIMEOUT_MS=180000
 ```
 
 ## 📝 Integration Points

@@ -11,14 +11,14 @@ const globalForUsersPrisma = globalThis as unknown as {
 };
 
 // Markets database client (for Market model only)
-export const marketsPrisma =
+export const marketsPrisma: MarketsPrismaClient =
   globalForMarketsPrisma.marketsPrisma ??
   new MarketsPrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
 // Users database client (for User, Bet, CreditTransaction, etc.)
-export const usersPrisma =
+export const usersPrisma: UsersPrismaClient =
   globalForUsersPrisma.usersPrisma ??
   new UsersPrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],

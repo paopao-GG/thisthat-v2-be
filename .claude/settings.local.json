@@ -9,7 +9,8 @@
       "Bash(npm run stats:*)",
       "Bash(npm run list:categories:*)",
       "Bash(npm run test:prefetch:*)",
-      "Bash(timeout 30 npx tsx:*)"
+      "Bash(timeout 30 npx tsx:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

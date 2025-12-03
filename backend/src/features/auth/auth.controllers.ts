@@ -215,22 +215,45 @@ export async function xAuthHandler(request: FastifyRequest, reply: FastifyReply)
  */
 export async function xCallbackHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
-    const { code, state, code_verifier } = request.query as {
+    const { code, state, code_verifier, error, error_description } = request.query as {
       code?: string;
       state?: string;
       code_verifier?: string;
+      error?: string;
+      error_description?: string;
     };
 
-    request.log.info({ code: !!code, state: !!state, code_verifier: !!code_verifier }, 'OAuth callback received');
+    request.log.info({
+      code: !!code,
+      state: !!state,
+      code_verifier: !!code_verifier,
+      error,
+      error_description
+    }, 'OAuth callback received');
+
+    // Determine frontend URL from referer or environment variable
+    const referer = request.headers.referer || request.headers.origin;
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    // If callback came from localhost, redirect back to localhost
+    if (referer && (referer.includes('localhost') || referer.includes('127.0.0.1'))) {
+      const refererUrl = new URL(referer);
+      frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
+      request.log.info({ detectedFrontend: frontendUrl }, 'Detected localhost frontend from referer');
+    }
+
+    // Check for OAuth errors from X (user denied access, etc.)
+    if (error) {
+      request.log.error({ error, error_description }, 'OAuth error from provider');
+      return reply.redirect(`${frontendUrl}/?error=oauth_denied&details=${encodeURIComponent(error_description || error)}`);
+    }
 
     if (!code) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       request.log.error('Missing code parameter');
       return reply.redirect(`${frontendUrl}/?error=oauth_failed&reason=missing_code`);
     }
 
     if (!state && !code_verifier) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       request.log.error('Missing state and code_verifier parameters');
       return reply.redirect(`${frontendUrl}/?error=oauth_failed&reason=missing_state`);
     }
@@ -239,28 +262,34 @@ export async function xCallbackHandler(request: FastifyRequest, reply: FastifyRe
     const result = await handleXCallback(code, state || '', code_verifier || '', request.server.jwt);
 
     // Redirect to frontend with tokens
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const params = new URLSearchParams({
       accessToken: result.tokens.accessToken,
       refreshToken: result.tokens.refreshToken,
       userId: result.user.id,
     });
 
-    request.log.info({ userId: result.user.id }, 'OAuth callback successful, redirecting to frontend');
+    request.log.info({ userId: result.user.id, frontendUrl }, 'OAuth callback successful, redirecting to frontend');
     reply.redirect(`${frontendUrl}/auth/callback?${params.toString()}`);
   } catch (error: any) {
-    request.log.error({ 
-      error: error.message, 
+    request.log.error({
+      error: error.message,
       stack: error.stack,
       name: error.name,
       code: error.code,
     }, 'OAuth callback error');
-    
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    
+
+    // Determine frontend URL from referer
+    const referer = request.headers.referer || request.headers.origin;
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    if (referer && (referer.includes('localhost') || referer.includes('127.0.0.1'))) {
+      const refererUrl = new URL(referer);
+      frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
+    }
+
     let errorMessage = 'oauth_failed';
     let errorDetails = error.message || 'Unknown error';
-    
+
     if (error.message?.includes('Invalid or expired')) {
       errorMessage = 'oauth_expired';
     } else if (error.message?.includes('Token exchange')) {
@@ -277,7 +306,7 @@ export async function xCallbackHandler(request: FastifyRequest, reply: FastifyRe
       errorMessage = 'database_error';
       errorDetails = 'Database error. Make sure migrations are run.';
     }
-    
+
     // Log full error for debugging
     console.error('Full OAuth error:', {
       message: error.message,
@@ -285,7 +314,7 @@ export async function xCallbackHandler(request: FastifyRequest, reply: FastifyRe
       name: error.name,
       code: error.code,
     });
-    
+
     reply.redirect(`${frontendUrl}/?error=${errorMessage}&details=${encodeURIComponent(errorDetails)}`);
   }
 }

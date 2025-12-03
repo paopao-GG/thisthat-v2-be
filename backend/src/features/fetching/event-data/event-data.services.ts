@@ -18,8 +18,8 @@ export function normalizeEvent(polymarketData: PolymarketEvent): FlattenedEvent 
     status = 'closed';
   }
 
-  // Extract market IDs if markets are included
-  const marketIds = polymarketData.markets?.map(m => m.condition_id || m.question_id) || [];
+  // Extract market IDs if markets are included (filter out undefined values)
+  const marketIds = (polymarketData.markets?.map(m => m.condition_id || m.question_id) || []).filter((id): id is string => !!id);
 
   return {
     eventId: polymarketData.id,

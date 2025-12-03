@@ -2,7 +2,12 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { usersPrisma as prisma } from '../../lib/database.js';
 import type { SignupInput, LoginInput } from './auth.models.js';
-import { FastifyJWT } from '@fastify/jwt';
+
+// JWT sign/verify interface compatible with @fastify/jwt
+interface JwtInstance {
+  sign: (payload: object, options?: { expiresIn?: string | number }) => string;
+  verify: <T = unknown>(token: string) => T;
+}
 
 const SALT_ROUNDS = 12;
 const STARTING_CREDITS = 1000;
@@ -96,7 +101,7 @@ function mapUserToProfile(user: any): UserProfile {
  */
 export async function registerUser(
   input: SignupInput,
-  jwt: FastifyJWT['jwt']
+  jwt: JwtInstance
 ): Promise<{ user: UserProfile; tokens: AuthTokens }> {
   const normalizedReferralCode = input.referralCode?.trim().toUpperCase();
   let referringUser: { id: string } | null = null;
@@ -228,7 +233,7 @@ export async function registerUser(
  */
 export async function authenticateUser(
   input: LoginInput,
-  jwt: FastifyJWT['jwt']
+  jwt: JwtInstance
 ): Promise<{ user: UserProfile; tokens: AuthTokens }> {
   // Find user by email
   const user = await prisma.user.findUnique({
@@ -352,7 +357,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
  */
 export async function refreshAccessToken(
   refreshToken: string,
-  jwt: FastifyJWT['jwt']
+  jwt: JwtInstance
 ): Promise<{ accessToken: string }> {
   // Find refresh token in database
   const refreshTokens = await prisma.refreshToken.findMany({

@@ -1,7 +1,29 @@
 import { usersPrisma as prisma } from '../../lib/database.js';
 import { hashPassword } from './auth.services.js';
-import type { FastifyJWT } from '@fastify/jwt';
 import crypto from 'node:crypto';
+
+// JWT sign/verify interface compatible with @fastify/jwt
+interface JwtInstance {
+  sign: (payload: object, options?: { expiresIn?: string | number }) => string;
+  verify: <T = unknown>(token: string) => T;
+}
+
+// Response types from X OAuth API
+interface XTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expires_in: number;
+  scope: string;
+}
+
+interface XUserResponse {
+  data: {
+    id: string;
+    username: string;
+    name: string;
+  };
+}
 
 const X_AUTH_URL = 'https://twitter.com/i/oauth2/authorize';
 const X_TOKEN_URL = 'https://api.twitter.com/2/oauth2/token';
@@ -120,7 +142,7 @@ async function exchangeCodeForToken(
     throw new Error(`Token exchange failed: ${error}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as XTokenResponse;
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -145,7 +167,7 @@ async function getXUserInfo(accessToken: string): Promise<XUserInfo> {
     throw new Error(`Failed to get user info: ${error}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as XUserResponse;
   return {
     id: data.data.id,
     username: data.data.username,
@@ -192,7 +214,7 @@ export async function handleXCallback(
   code: string,
   state: string,
   codeVerifierParam: string,
-  jwt: FastifyJWT['jwt']
+  jwt: JwtInstance
 ): Promise<{ user: any; tokens: { accessToken: string; refreshToken: string } }> {
   // Decode state (it contains state:codeVerifier encoded)
   let actualState = state;
@@ -239,7 +261,7 @@ export async function handleXCallback(
   try {
     const tokenResult = await exchangeCodeForToken(code, codeVerifier);
     accessToken = tokenResult.accessToken;
-    xRefreshToken = tokenResult.refreshToken;
+    xRefreshToken = tokenResult.refreshToken ?? null;
     console.log('[OAuth] Token exchange successful');
   } catch (error: any) {
     console.error('[OAuth] Token exchange failed:', error.message, error.stack);

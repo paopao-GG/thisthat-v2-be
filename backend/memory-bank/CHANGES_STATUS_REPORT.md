@@ -63,6 +63,7 @@
 - ✅ Retry logic with exponential backoff (`lib/retry.ts`)
 - ✅ Error handling in betting service (transactions, validation)
 - ✅ Error handling in market fetching (retry on failure)
+- ✅ Sell position flow now fetches live odds before the DB transaction and restricts Prisma work to a short atomic block, eliminating timeouts/deadlocks during heavy sell traffic.
 - ⚠️ No comprehensive failover strategy
 - ⚠️ No message queue for retries
 - ⚠️ Limited error recovery mechanisms
