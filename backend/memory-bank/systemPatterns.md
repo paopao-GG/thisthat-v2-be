@@ -147,16 +147,61 @@ async function placeBet(userId, marketId, amount, side) {
 - Row-level locking to prevent race conditions
 - Consistent state across related tables
 
-### 4. JWT Authentication Flow
+### 4. Authentication Flow (OAuth Primary)
+
+**Current Implementation:** OAuth (X/Twitter) is the primary authentication method. Email/password controllers exist but routes are not registered.
+
+#### OAuth Flow (X/Twitter)
 **Pattern:**
 ```
-1. User logs in → Server validates credentials
-2. Server generates access token (15min) + refresh token (7d)
-3. Access token stored in memory (frontend)
-4. Refresh token stored in httpOnly cookie (optional) or local storage
-5. Every API request includes: Authorization: Bearer <access-token>
-6. When access token expires, use refresh token to get new pair
-7. On logout, invalidate refresh token in database
+1. User clicks "Sign in with X" → Frontend redirects to GET /api/v1/auth/x
+2. Backend generates PKCE code challenge and redirects to X OAuth
+3. User authorizes on X → X redirects to GET /api/v1/auth/x/callback?code=...&state=...
+4. Backend exchanges code for access token, gets user info from X API
+5. Backend creates/updates user in database (OAuthAccount model)
+6. Backend generates JWT tokens (access + refresh)
+7. Backend redirects to frontend with tokens in query string
+8. Frontend stores tokens in localStorage
+9. Every API request includes: Authorization: Bearer <access-token>
+10. When access token expires, use POST /api/v1/auth/refresh to get new pair
+11. On logout, POST /api/v1/auth/logout invalidates refresh token
+```
+
+**Implementation:**
+```typescript
+// OAuth initiation (oauth.services.ts)
+export function getXAuthUrl(): { url: string; state: string; codeVerifier: string } {
+  const state = crypto.randomBytes(32).toString('base64url');
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256')
+    .update(codeVerifier).digest('base64url');
+  
+  // Store state and codeVerifier (expires in 10 minutes)
+  oauthStateStore.set(state, { state, codeVerifier, expiresAt: ... });
+  
+  const url = `${X_AUTH_URL}?${params}`;
+  return { url, state, codeVerifier };
+}
+
+// OAuth callback (oauth.services.ts)
+export async function handleXCallback(code: string, state: string) {
+  // Verify state, exchange code for token
+  // Get user info from X API
+  // Create/update user and OAuthAccount
+  // Generate JWT tokens
+  return { user, accessToken, refreshToken };
+}
+```
+
+#### JWT Token Management
+**Pattern:**
+```
+1. Server generates access token (15min) + refresh token (7d)
+2. Access token stored in memory (frontend)
+3. Refresh token stored in localStorage
+4. Every API request includes: Authorization: Bearer <access-token>
+5. When access token expires, use refresh token to get new pair
+6. On logout, invalidate refresh token in database
 ```
 
 **Implementation:**
@@ -355,23 +400,29 @@ setInterval(ingestPolymarketMarkets, 5 * 60 * 1000);
 
 ### Critical Implementation Paths
 
-#### Path 1: User Registration → First Bet
+#### Path 1: User Authentication (OAuth) → First Bet
 ```
-1. POST /api/v1/auth/register
-   → Validate input
-   → Hash password (bcrypt)
-   → Create user with 1000 starting credits
-   → Generate JWT tokens
-   → Return user + tokens
+1. GET /api/v1/auth/x
+   → Generate PKCE code challenge
+   → Store state and codeVerifier
+   → Redirect to X OAuth authorization page
 
-2. GET /api/v1/markets
+2. GET /api/v1/auth/x/callback?code=...&state=...
+   → Verify state and code
+   → Exchange code for X access token
+   → Get user info from X API
+   → Create/update user in database (OAuthAccount)
+   → Generate JWT tokens (access + refresh)
+   → Redirect to frontend with tokens
+
+3. GET /api/v1/markets
    → Check cache (Redis)
    → If miss, query database
    → Filter by status='open'
    → Cache results (60s TTL)
    → Return markets
 
-3. POST /api/v1/bets
+4. POST /api/v1/bets
    → Verify JWT token
    → Validate market exists and is open
    → Start database transaction
@@ -383,6 +434,8 @@ setInterval(ingestPolymarketMarkets, 5 * 60 * 1000);
    → Commit transaction
    → Return bet details
 ```
+
+**Note:** Email/password signup/login controllers exist but routes are not registered. OAuth is the primary authentication method.
 
 #### Path 2: Market Resolution → Payout
 ```
@@ -514,12 +567,20 @@ app.addHook('onRequest', async (req, reply) => {
   await authenticateRequest(req, reply);
 });
 
-// Rate limiting middleware
-app.addHook('onRequest', async (req, reply) => {
-  const key = `ratelimit:${req.ip}:${req.url}`;
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, 60);
-  if (count > 100) throw new RateLimitExceededError();
+// Rate limiting middleware (using @fastify/rate-limit)
+// Registered globally and per route group with different limits:
+// - Critical processes: 30 req/min
+// - Auth endpoints: 10 req/15min
+// - Standard endpoints: 100 req/min
+// - External API: 5 req/min
+await fastify.register(rateLimit, {
+  max: 100,
+  timeWindow: 60000,
+  keyGenerator: (request) => {
+    const userId = request.user?.userId;
+    return userId ? `user:${userId}` : `ip:${request.ip}`;
+  },
+  redis: redisClient, // Uses Redis if available, in-memory otherwise
 });
 ```
 

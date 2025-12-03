@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import type { UpdateUserInput } from './user.models.js';
 
 export interface PublicUserProfile {

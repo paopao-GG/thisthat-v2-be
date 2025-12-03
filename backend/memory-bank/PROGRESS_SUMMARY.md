@@ -15,6 +15,7 @@
 - ✅ Credit Transactions - **100% Complete**
 - ✅ **Unit Test Suite - 100% Complete** (222 tests, all V1 features covered)
 - ✅ **Frontend Integration - 100% Complete** (Betting/swiping, Profile with real PnL/graph, Market fetching, Daily rewards, Leaderboard functional)
+- ✅ **Rate Limiting - 100% Complete** (Critical processes, auth endpoints, external API calls, standard endpoints)
 
 ---
 
@@ -30,21 +31,21 @@
 - ✅ Frontend integration complete
 
 ### Phase 2: Authentication (100%)
-- ✅ **User Signup** (POST /api/v1/auth/signup)
-  - Email/username/password/name validation
-  - Password hashing (bcrypt, 12 rounds)
-  - User creation with 1000 starting credits + economy fields
-  - Signup bonus credit transaction
-  - JWT token generation
-  - Economy fields initialized (availableCredits, expendedCredits, consecutiveDaysOnline)
-- ✅ **User Login** (POST /api/v1/auth/login)
-  - Email/password authentication
-  - JWT token generation
-  - Refresh token storage
-  - Consecutive days tracking
+- ✅ **OAuth Authentication (X/Twitter) - PRIMARY METHOD**
+  - GET /api/v1/auth/x - OAuth initiation with PKCE flow
+  - GET /api/v1/auth/x/callback - OAuth callback handler
+  - PKCE code challenge generation and verification
+  - X API integration for user info retrieval
+  - Automatic user creation/update on OAuth callback
+  - OAuthAccount model for storing provider accounts
+  - JWT token generation after OAuth success
 - ✅ **User Profile** (GET /api/v1/auth/me)
   - Protected route with JWT middleware
   - Returns user profile with credit balance and economy fields
+- ✅ **Token Management**
+  - POST /api/v1/auth/refresh - Token refresh endpoint
+  - POST /api/v1/auth/logout - Logout and token invalidation
+  - Refresh token storage in database
 - ✅ **JWT Middleware**
   - Token verification
   - User context attachment
@@ -53,14 +54,16 @@
   - Singleton pattern implemented
   - Database connection ready
 - ✅ **Frontend Integration**
-  - SignupPage component
-  - LoginPage component
+  - PreLogin component (OAuth redirect)
+  - AuthCallback component (OAuth callback handler)
   - AuthContext for state management
   - AuthService for API calls
   - ProfilePage uses real user data
   - Token storage in localStorage
-- ✅ **Refresh Token** (POST /api/v1/auth/refresh) - **COMPLETE**
-- ✅ **Logout** (POST /api/v1/auth/logout) - **COMPLETE**
+- ⚠️ **Email/Password Controllers** (NOT ACTIVE)
+  - Signup/login controllers exist in code but routes are NOT registered
+  - OAuth is the primary authentication method
+  - Email/password can be enabled by registering routes if needed
 
 ---
 
@@ -464,9 +467,9 @@
    - Existing users created before this update will have UUID-style referral codes
    - Consider running a backfill script to regenerate 8-character codes for legacy accounts
 
-3. **Rate Limiting Missing**
-   - Auth endpoints don't have rate limiting yet
-   - Should add @fastify/rate-limit plugin
+3. ~~**Rate Limiting Missing**~~ ✅ **RESOLVED**
+   - ✅ Rate limiting implemented with `@fastify/rate-limit` plugin
+   - ✅ Applied to all endpoint types (auth, critical processes, external API, standard)
 
 4. **Testing Coverage**
    - New vitest specs added for economy/referral/purchase flows
@@ -485,9 +488,9 @@
 2. ✅ Test signup/login flow end-to-end - **WORKING**
 3. ✅ Sync markets from MongoDB to PostgreSQL - **AUTOMATED**
 4. ✅ Test betting flow end-to-end - **WORKING**
-5. Implement refresh token endpoint
-6. Implement logout endpoint
-7. Add rate limiting to auth endpoints
+5. ✅ Implement refresh token endpoint - **COMPLETE**
+6. ✅ Implement logout endpoint - **COMPLETE**
+7. ✅ Add rate limiting to auth endpoints - **COMPLETE**
 
 ### Short Term (Next Week)
 1. Write unit tests for betting module

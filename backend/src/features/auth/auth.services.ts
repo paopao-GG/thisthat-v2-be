@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import type { SignupInput, LoginInput } from './auth.models.js';
 import { FastifyJWT } from '@fastify/jwt';
 

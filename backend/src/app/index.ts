@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import rateLimit from '@fastify/rate-limit';
 import dotenv from 'dotenv';
 import authRoutes from '../features/auth/auth.routes.js';
 import userRoutes from '../features/users/user.routes.js';
@@ -16,6 +17,12 @@ import referralRoutes from '../features/referrals/referral.routes.js';
 import purchaseRoutes from '../features/purchases/purchases.routes.js';
 import marketsRoutes from '../features/markets/markets.routes.js';
 import { startMarketIngestionJob, stopMarketIngestionJob } from '../jobs/market-ingestion.job.js';
+import {
+  criticalProcessRateLimit,
+  authRateLimit,
+  standardRateLimit,
+  externalApiRateLimit,
+} from '../lib/rate-limit.config.js';
 
 // Load environment variables
 dotenv.config();
@@ -50,6 +57,17 @@ await fastify.register(jwt, {
   secret: process.env.JWT_ACCESS_SECRET || 'your-secret-key-change-in-production',
 });
 
+// Register Rate Limiting
+// Global rate limit (applies to all routes unless overridden)
+// Uses in-memory storage (works without Redis)
+// Note: @fastify/rate-limit expects ioredis client, not redis v5 client
+// For distributed rate limiting, install ioredis and pass client instance
+await fastify.register(rateLimit, {
+  ...standardRateLimit,
+  // Use in-memory storage (works without Redis)
+  // To use Redis: install ioredis and pass client: new Redis(process.env.REDIS_URL)
+});
+
 // Basic health check route
 fastify.get('/health', async (request, reply) => {
   return { status: 'ok', timestamp: new Date().toISOString() };
@@ -61,19 +79,31 @@ fastify.get('/api/hello', async (request, reply) => {
 });
 
 // Register Markets routes (PostgreSQL-based with live prices)
+// Standard rate limit applies
 await fastify.register(marketsRoutes, { prefix: '/api/v1/markets' });
 
 // Register Auth routes
+// Rate limiting is handled within auth.routes.ts (different limits for different endpoints)
 await fastify.register(authRoutes, { prefix: '/api/v1/auth' });
 
 // Register User routes
 await fastify.register(userRoutes, { prefix: '/api/v1/users' });
 
-// Register Economy routes
-await fastify.register(economyRoutes, { prefix: '/api/v1/economy' });
+// Register Economy routes with critical process rate limiting
+await fastify.register(async (fastify) => {
+  await fastify.register(rateLimit, {
+    ...criticalProcessRateLimit,
+  });
+  await fastify.register(economyRoutes);
+}, { prefix: '/api/v1/economy' });
 
-// Register Betting routes
-await fastify.register(bettingRoutes, { prefix: '/api/v1/bets' });
+// Register Betting routes with critical process rate limiting
+await fastify.register(async (fastify) => {
+  await fastify.register(rateLimit, {
+    ...criticalProcessRateLimit,
+  });
+  await fastify.register(bettingRoutes);
+}, { prefix: '/api/v1/bets' });
 
 // Register Leaderboard routes
 await fastify.register(leaderboardRoutes, { prefix: '/api/v1/leaderboard' });
@@ -84,13 +114,29 @@ await fastify.register(transactionRoutes, { prefix: '/api/v1/transactions' });
 // Register Referral routes
 await fastify.register(referralRoutes, { prefix: '/api/v1/referrals' });
 
-// Register Purchase routes
-await fastify.register(purchaseRoutes, { prefix: '/api/v1/purchases' });
+// Register Purchase routes with critical process rate limiting
+await fastify.register(async (fastify) => {
+  await fastify.register(rateLimit, {
+    ...criticalProcessRateLimit,
+  });
+  await fastify.register(purchaseRoutes);
+}, { prefix: '/api/v1/purchases' });
 
-// Error handling
-fastify.setErrorHandler((error, request, reply) => {
-  fastify.log.error(error);
-  reply.status(500).send({ error: 'Something went wrong!' });
+// Global error handling with structured errors
+fastify.setErrorHandler(async (error, request, reply) => {
+  const { createStructuredError } = await import('../lib/error-handler.js');
+  const { sendErrorResponse } = await import('../lib/error-response.js');
+  
+  const structuredError = createStructuredError(error);
+  
+  fastify.log.error({ 
+    error: structuredError, 
+    stack: error.stack,
+    url: request.url,
+    method: request.method,
+  });
+
+  return sendErrorResponse(reply, error, 'An unexpected error occurred');
 });
 
 // Start server

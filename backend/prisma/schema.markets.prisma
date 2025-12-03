@@ -1,0 +1,48 @@
+// Markets Database Schema - Separate database for market data only
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-markets"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("MARKETS_DATABASE_URL")
+}
+
+// Market model - Prediction markets (Polymarket + admin-created)
+model Market {
+  id              String   @id @default(uuid()) @db.Uuid
+  polymarketId    String?  @unique @map("polymarket_id") @db.VarChar(255)
+
+  title           String   @db.VarChar(500)
+  description     String?  @db.Text
+
+  // Binary options (THIS/THAT)
+  thisOption      String   @map("this_option") @db.VarChar(255)
+  thatOption      String   @map("that_option") @db.VarChar(255)
+
+  // Odds (e.g., 0.6500 = 65%)
+  thisOdds        Decimal  @map("this_odds") @db.Decimal(5, 4)
+  thatOdds        Decimal  @map("that_odds") @db.Decimal(5, 4)
+
+  // Market metadata
+  liquidity       Decimal? @db.Decimal(18, 2)
+  category        String?  @db.VarChar(100)
+  marketType      String   @default("polymarket") @map("market_type") @db.VarChar(50) // 'credits', 'polymarket', 'cross'
+  status          String   @default("open") @db.VarChar(50) // 'open', 'closed', 'resolved', 'cancelled'
+  resolution      String?  @db.VarChar(50) // 'this', 'that', 'invalid'
+
+  // Timing
+  expiresAt       DateTime? @map("expires_at") @db.Timestamp()
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamp()
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp()
+
+  @@index([status])
+  @@index([category])
+  @@index([marketType])
+  @@index([polymarketId])
+  @@map("markets")
+}
+

@@ -3,6 +3,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { 
   getMarketsHandler,
   getMarketByIdHandler,
@@ -13,6 +14,7 @@ import {
   getCategoriesHandler,
   ingestMarketsHandler,
 } from './markets.controllers.js';
+import { externalApiRateLimit } from '../../lib/rate-limit.config.js';
 
 export default async function marketsRoutes(fastify: FastifyInstance) {
   // IMPORTANT: More specific routes must come before less specific ones
@@ -22,8 +24,13 @@ export default async function marketsRoutes(fastify: FastifyInstance) {
   // Get random markets (static data only)
   fastify.get('/random', getRandomMarketsHandler);
   
-  // Trigger Polymarket ingestion (admin/diagnostic)
-  fastify.post('/ingest', ingestMarketsHandler);
+  // Trigger Polymarket ingestion (admin/diagnostic) - Strict rate limiting
+  await fastify.register(async (fastify) => {
+    await fastify.register(rateLimit, {
+      ...externalApiRateLimit,
+    });
+    fastify.post('/ingest', ingestMarketsHandler);
+  });
 
   // Get all categories (must come before /:id to avoid matching)
   fastify.get('/categories', getCategoriesHandler);

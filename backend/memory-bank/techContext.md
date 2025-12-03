@@ -210,15 +210,20 @@ backend/
 ```json
 {
   "fastify": "^5.6.2",
-  "fastify-cors": "^9.0.1",
-  "@fastify/jwt": "^9.0.1",
-  "@prisma/client": "^5.0.0",
-  "prisma": "^5.0.0",
-  "redis": "^4.7.0",
-  "bcrypt": "^5.1.1",
-  "pino": "^9.0.0",
+  "@fastify/cors": "^10.0.0",
+  "@fastify/jwt": "^10.0.0",
+  "@prisma/client": "^6.19.0",
+  "prisma": "^6.19.0",
+  "redis": "^5.9.0",
+  "bcrypt": "^6.0.0",
+  "pino": "^10.1.0",
   "pino-pretty": "^13.0.0",
-  "zod": "^3.23.0"
+  "zod": "^4.1.12",
+  "oauth4webapi": "^1.0.0",
+  "node-cron": "^3.0.3",
+  "mongodb": "^7.0.0",
+  "axios": "^1.13.2",
+  "dotenv": "^17.2.3"
 }
 ```
 
@@ -226,13 +231,25 @@ backend/
 ```json
 {
   "typescript": "^5.9.3",
-  "tsx": "^4.0.0",
-  "@types/node": "^20.0.0",
-  "@types/bcrypt": "^5.0.2",
-  "eslint": "^9.0.0",
-  "vitest": "^2.0.0"
+  "tsx": "^4.19.0",
+  "@types/node": "^24.10.1",
+  "@types/bcrypt": "^6.0.0",
+  "eslint": "^9.14.0",
+  "vitest": "^4.0.10",
+  "@vitest/coverage-v8": "^4.0.10",
+  "@vitest/ui": "^4.0.10",
+  "@fastify/type-provider-typebox": "^6.1.0",
+  "@typescript-eslint/eslint-plugin": "^8.13.0",
+  "@typescript-eslint/parser": "^8.13.0"
 }
 ```
+
+**Note:** Package versions updated to match actual `package.json`. Key changes:
+- Prisma upgraded from 5.x to 6.19.0
+- JWT plugin upgraded from 9.x to 10.0.0
+- Redis upgraded from 4.7.0 to 5.9.0
+- Zod upgraded from 3.23.0 to 4.1.12
+- Added: `oauth4webapi`, `node-cron`, `mongodb` (not previously documented)
 
 ## Tool Usage Patterns
 

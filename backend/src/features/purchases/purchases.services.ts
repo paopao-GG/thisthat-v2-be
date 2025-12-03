@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 
 export const CREDIT_PACKAGES = {
   starter: { id: 'starter', credits: 500, usd: 4.99, label: 'Starter' },

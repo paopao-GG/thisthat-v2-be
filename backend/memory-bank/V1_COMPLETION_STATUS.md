@@ -13,10 +13,13 @@ All critical V1 features have been successfully implemented and are production-r
 
 #### Core Features
 1. ✅ **Authentication System** (100%)
-   - Signup, Login, Profile
+   - OAuth (X/Twitter) - Primary authentication method
+   - OAuth callback handler with PKCE flow
+   - User Profile (GET /me)
    - Refresh Token, Logout
    - JWT middleware
-   - Password hashing
+   - OAuthAccount model for provider accounts
+   - ⚠️ Email/password controllers exist but routes not registered
 
 2. ✅ **User Management** (100%)
    - Profile updates
@@ -104,20 +107,22 @@ All critical V1 features have been successfully implemented and are production-r
 **Total: 20+ endpoints** - All V1 endpoints implemented ✅
 
 ### Authentication (5 endpoints) ✅
-- POST /api/v1/auth/signup ✅
-- POST /api/v1/auth/login ✅
-- POST /api/v1/auth/refresh ✅
-- POST /api/v1/auth/logout ✅
-- GET /api/v1/auth/me ✅
+- GET /api/v1/auth/x ✅ (OAuth - X/Twitter login initiation)
+- GET /api/v1/auth/x/callback ✅ (OAuth callback handler)
+- POST /api/v1/auth/refresh ✅ (Token refresh)
+- POST /api/v1/auth/logout ✅ (Logout and token invalidation)
+- GET /api/v1/auth/me ✅ (User profile - requires JWT)
+- ⚠️ **Note:** Email/password signup/login controllers exist but routes are NOT registered. OAuth (X/Twitter) is the primary authentication method.
 
 ### Users (2 endpoints) ✅
 - PATCH /api/v1/users/me ✅
 - GET /api/v1/users/:userId ✅
 
-### Betting (3 endpoints) ✅
-- POST /api/v1/bets ✅
-- GET /api/v1/bets/me ✅
-- GET /api/v1/bets/:betId ✅
+### Betting (4 endpoints) ✅
+- POST /api/v1/bets ✅ (Place bet)
+- GET /api/v1/bets/me ✅ (User's bets)
+- GET /api/v1/bets/:betId ✅ (Bet details)
+- POST /api/v1/bets/:betId/sell ✅ (Sell position - secondary market)
 
 ### Economy (1 endpoint) ✅
 - POST /api/v1/economy/daily-credits ✅
@@ -138,10 +143,15 @@ All critical V1 features have been successfully implemented and are production-r
 - POST /api/v1/purchases ✅
 - GET /api/v1/purchases/me ✅
 
-### Markets (3 endpoints) ✅
-- GET /api/v1/markets ✅
-- GET /api/v1/markets/stats ✅
-- POST /api/v1/markets/fetch ✅
+### Markets (8 endpoints) ✅
+- GET /api/v1/markets ✅ (List markets with filters, pagination)
+- GET /api/v1/markets/random ✅ (Random markets for discovery)
+- GET /api/v1/markets/categories ✅ (List all categories)
+- GET /api/v1/markets/category/:category ✅ (Filter by category)
+- GET /api/v1/markets/:id ✅ (Single market - static data)
+- GET /api/v1/markets/:id/live ✅ (Live odds from Polymarket)
+- GET /api/v1/markets/:id/full ✅ (Combined static + live data)
+- POST /api/v1/markets/ingest ✅ (Manual ingestion trigger)
 
 ### Sync (2 endpoints) ✅
 - POST /api/v1/sync/markets ✅
@@ -251,6 +261,7 @@ All 4 background jobs are running:
 4. Configure production environment variables
 5. Load testing (recommended)
 6. ~~Unit tests for new modules~~ ✅ **COMPLETE** - All V1 features tested
+7. ~~Rate limiting~~ ✅ **COMPLETE** - All endpoints protected
 
 ---
 

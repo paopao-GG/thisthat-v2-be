@@ -1,9 +1,8 @@
-// Event data service - Fetch, normalize, and save
-import { getPolymarketClient, type PolymarketEvent } from '../../../lib/polymarket-client.js';
-import { getDatabase } from '../../../lib/mongodb.js';
-import type { FlattenedEvent, EventStats } from './event-data.models.js';
-
-const COLLECTION_NAME = 'events';
+// Event data service - Normalize Polymarket event data
+// NOTE: MongoDB has been removed. Only normalizeEvent function is kept.
+// Event ingestion is not currently used - markets are ingested directly via market-ingestion.service.ts
+import { type PolymarketEvent } from '../../../lib/polymarket-client.js';
+import type { FlattenedEvent } from './event-data.models.js';
 
 /**
  * Normalize Polymarket event data to our flat structure
@@ -53,68 +52,23 @@ export function normalizeEvent(polymarketData: PolymarketEvent): FlattenedEvent 
 }
 
 /**
- * Fetch events from Polymarket and save to MongoDB
+ * DEPRECATED: MongoDB functions removed.
+ * Event ingestion is not currently used - markets are ingested directly via market-ingestion.service.ts
+ */
+
+/**
+ * DEPRECATED: MongoDB removed
  */
 export async function fetchAndSaveEvents(options?: {
   active?: boolean;
   limit?: number;
 }): Promise<{ saved: number; errors: number }> {
-  const client = getPolymarketClient();
-  const db = await getDatabase();
-  const collection = db.collection<FlattenedEvent>(COLLECTION_NAME);
-
-  try {
-    console.log('📡 Fetching events from Polymarket Gamma API...');
-    const events = await client.getEvents({
-      closed: options?.active === false, // Gamma API uses 'closed' parameter
-      limit: options?.limit ?? 100,
-      order: 'id', // Use id ordering for consistent pagination
-      ascending: false, // Get newest first
-    });
-
-    // Check if events is an array
-    if (!Array.isArray(events)) {
-      console.error('❌ Polymarket API did not return an array. Response:', events);
-      throw new Error('Invalid response from Polymarket API');
-    }
-
-    console.log(`✅ Fetched ${events.length} events from Polymarket`);
-
-    let saved = 0;
-    let errors = 0;
-
-    for (const event of events) {
-      try {
-        const normalized = normalizeEvent(event);
-
-        // Upsert to MongoDB (update if exists, insert if new)
-        await collection.updateOne(
-          { eventId: normalized.eventId },
-          { $set: normalized },
-          { upsert: true }
-        );
-
-        saved++;
-      } catch (error) {
-        console.error(`❌ Error saving event ${event.id}:`, error);
-        errors++;
-      }
-    }
-
-    console.log(`✅ Saved ${saved} events to MongoDB`);
-    if (errors > 0) {
-      console.log(`⚠️  ${errors} events failed to save`);
-    }
-
-    return { saved, errors };
-  } catch (error) {
-    console.error('❌ Error fetching events:', error);
-    throw error;
-  }
+  console.warn('[DEPRECATED] fetchAndSaveEvents is deprecated. MongoDB has been removed.');
+  return { saved: 0, errors: 0 };
 }
 
 /**
- * Get all events from MongoDB
+ * DEPRECATED: MongoDB removed
  */
 export async function getAllEvents(filter?: {
   status?: 'active' | 'closed' | 'archived';
@@ -123,57 +77,22 @@ export async function getAllEvents(filter?: {
   limit?: number;
   skip?: number;
 }): Promise<FlattenedEvent[]> {
-  const db = await getDatabase();
-  const collection = db.collection<FlattenedEvent>(COLLECTION_NAME);
-
-  const query: any = {};
-  if (filter?.status) query.status = filter.status;
-  if (filter?.category) query.category = filter.category;
-  if (filter?.featured !== undefined) query.featured = filter.featured;
-
-  const cursor = collection
-    .find(query)
-    .sort({ updatedAt: -1 })
-    .limit(filter?.limit || 100)
-    .skip(filter?.skip || 0);
-
-  return await cursor.toArray();
+  console.warn('[DEPRECATED] getAllEvents is deprecated. MongoDB has been removed.');
+  return [];
 }
 
 /**
- * Get event statistics
+ * DEPRECATED: MongoDB removed
  */
-export async function getEventStats(): Promise<EventStats> {
-  const db = await getDatabase();
-  const collection = db.collection<FlattenedEvent>(COLLECTION_NAME);
-
-  const [total, active, closed, archived, featured] = await Promise.all([
-    collection.countDocuments(),
-    collection.countDocuments({ status: 'active' }),
-    collection.countDocuments({ status: 'closed' }),
-    collection.countDocuments({ status: 'archived' }),
-    collection.countDocuments({ featured: true }),
-  ]);
-
-  // Get category counts
-  const categoryPipeline = [
-    { $match: { category: { $exists: true, $ne: null } } },
-    { $group: { _id: '$category', count: { $sum: 1 } } },
-  ];
-
-  const categoryResults = await collection.aggregate(categoryPipeline).toArray();
-  const categoryCounts: Record<string, number> = {};
-  for (const result of categoryResults) {
-    categoryCounts[result._id] = result.count;
-  }
-
+export async function getEventStats(): Promise<any> {
+  console.warn('[DEPRECATED] getEventStats is deprecated. MongoDB has been removed.');
   return {
-    totalEvents: total,
-    activeEvents: active,
-    closedEvents: closed,
-    archivedEvents: archived,
-    featuredEvents: featured,
-    categoryCounts,
+    totalEvents: 0,
+    activeEvents: 0,
+    closedEvents: 0,
+    archivedEvents: 0,
+    featuredEvents: 0,
+    categoryCounts: {},
     lastUpdated: new Date(),
   };
 }

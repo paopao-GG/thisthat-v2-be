@@ -5,7 +5,7 @@
 ### Project Status: V1 COMPLETE ✅ | ALL CRITICAL FEATURES IMPLEMENTED ✅
 As of 2025-01-XX, V1 is **COMPLETE**:
 - ✅ Phase 1: Polymarket Data Fetching (100%)
-- ✅ Phase 2: Authentication (100% - signup/login/profile/refresh/logout)
+- ✅ Phase 2: Authentication (100% - **OAuth (X/Twitter) primary**, email/password controllers exist but routes not registered, profile/refresh/logout)
 - ✅ Phase 3: User Module (100%)
 - ✅ Phase 4: Betting Module (100%)
 - ✅ Phase 5: Economy System (100% - daily credits PRD-aligned, stock market, transaction signing)
@@ -16,6 +16,7 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - ✅ Credit Transactions Endpoint (100%)
 - ✅ Referral System (100% - referral codes, stats, bonuses)
 - ✅ Credit Purchase System (100% - packages, purchase history)
+- ✅ Rate Limiting (100% - critical processes, auth, external API, standard endpoints)
 
 1. ✅ Backend PRD documented
 2. ✅ Memory Bank established (7 core files)
@@ -98,9 +99,11 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - `src/features/auth/` - **AUTHENTICATION IMPLEMENTED** ✅
   - `auth.models.ts` - Zod validation schemas (signup, login)
   - `auth.services.ts` - Signup, login, password hashing, JWT generation, user profile, consecutive days tracking
-  - `auth.controllers.ts` - Request handlers (signup, login, getMe)
+  - `auth.controllers.ts` - Request handlers (signup, login, getMe, refresh, logout, OAuth handlers)
   - `auth.middleware.ts` - JWT authentication middleware
-  - `auth.routes.ts` - Routes registered: POST /signup, POST /login, GET /me
+  - `oauth.services.ts` - X OAuth implementation (PKCE flow, token exchange, user creation)
+  - `auth.routes.ts` - Routes registered: **GET /x (OAuth), GET /x/callback (OAuth), POST /refresh, POST /logout, GET /me**
+  - **Note:** Email/password signup/login controllers exist but routes are NOT registered (OAuth is primary method)
 - `src/features/users/` - **USER MODULE IMPLEMENTED** ✅
   - `user.models.ts` - Zod validation schemas
   - `user.services.ts` - Update profile, get user by ID
@@ -147,7 +150,8 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - ⚠️ Prisma client created but database migrations may not be run (needs `npx prisma db push`)
 - ⚠️ PostgreSQL database setup (schema exists, connection configured in .env, but migrations pending)
 - ✅ Redis connection setup (configured with graceful fallback - works without Redis)
-- ✅ Authentication system - **FULLY IMPLEMENTED** (signup/login/refresh/logout complete)
+- ✅ Authentication system - **FULLY IMPLEMENTED** (OAuth X/Twitter primary, refresh/logout complete)
+  - ⚠️ Email/password signup/login controllers exist but routes not registered
 - ✅ Business logic modules (betting, leaderboards, market resolution, rewards)
 - ✅ **Phase 1 Test Suite** - COMPLETE (116 tests, 97%+ coverage)
 - ⚠️ Phase 2+ test suite (auth, betting, etc.) - Pending (not critical for V1 launch)
@@ -158,38 +162,53 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 
 **Total: 20+ endpoints** (see backend_prd.md section 5 for full specs)
 
-### Phase 1 Endpoints (Complete ✅)
+### Phase 1 Endpoints (Legacy - Routes Exist But NOT Registered)
+⚠️ **Note:** These legacy fetching routes exist in code but are NOT registered in the main app (`app/index.ts`). The current implementation uses the Markets module endpoints instead.
+
+- [ ] GET/POST /api/v1/markets/fetch - Legacy market fetching (not active)
+- [ ] GET /api/v1/markets/stats - Legacy market stats (not active)
+- [ ] GET/POST /api/v1/events/fetch - Legacy event fetching (not active)
+- [ ] GET /api/v1/events - Legacy event listing (not active)
+- [ ] GET /api/v1/events/stats - Legacy event stats (not active)
+- [ ] GET /api/v1/event-market-groups - Legacy event-market groups (not active)
+
+**Current Active Endpoints:**
 - [x] GET /health - Server health check
 - [x] GET /api/hello - Test endpoint
-- [x] GET/POST /api/v1/markets/fetch - Fetch markets from Polymarket
-- [x] GET /api/v1/markets - Query markets with filters
-- [x] GET /api/v1/markets/stats - Get market statistics
-- [x] GET/POST /api/v1/events/fetch - Fetch events from Polymarket
-- [x] GET /api/v1/events - Query events with filters
-- [x] GET /api/v1/events/stats - Get event statistics
+- [x] GET /api/v1/markets - Query markets with filters (active)
+- [x] See "Markets (Production)" section below for all active market endpoints
 
 ### V1 Production Endpoints (Not Started)
 
-### Authentication (4 endpoints)
-- [x] POST /api/v1/auth/signup ✅ **IMPLEMENTED**
-- [x] POST /api/v1/auth/login ✅ **IMPLEMENTED**
-- [x] GET /api/v1/auth/me ✅ **IMPLEMENTED**
-- [x] POST /api/v1/auth/refresh ✅ **IMPLEMENTED**
-- [x] POST /api/v1/auth/logout ✅ **IMPLEMENTED**
+### Authentication (5 endpoints)
+- [x] GET /api/v1/auth/x ✅ **IMPLEMENTED** (OAuth - X/Twitter login initiation)
+- [x] GET /api/v1/auth/x/callback ✅ **IMPLEMENTED** (OAuth callback handler)
+- [x] POST /api/v1/auth/refresh ✅ **IMPLEMENTED** (Token refresh)
+- [x] POST /api/v1/auth/logout ✅ **IMPLEMENTED** (Logout and token invalidation)
+- [x] GET /api/v1/auth/me ✅ **IMPLEMENTED** (User profile - requires JWT)
+- ⚠️ **Note:** Email/password signup/login controllers exist in code but routes are NOT registered. OAuth (X/Twitter) is the primary authentication method.
+- ✅ **Rate Limiting:** All auth endpoints protected with 10 requests per 15 minutes
 
 ### User Profile (3 endpoints)
 - [x] GET /api/v1/auth/me ✅ **IMPLEMENTED** (via auth module)
 - [x] PATCH /api/v1/users/me ✅ **IMPLEMENTED**
 - [x] GET /api/v1/users/:userId ✅ **IMPLEMENTED**
 
-### Markets (Production - 2 endpoints)
-- [x] GET /api/v1/markets (with filters, pagination) - ✅ Working (Phase 1)
-- [ ] GET /api/v1/markets/:marketId - Need to implement single market endpoint
+### Markets (Production - 8 endpoints)
+- [x] GET /api/v1/markets (with filters, pagination) - ✅ **IMPLEMENTED**
+- [x] GET /api/v1/markets/random - ✅ **IMPLEMENTED** (Random markets for discovery)
+- [x] GET /api/v1/markets/categories - ✅ **IMPLEMENTED** (List all categories)
+- [x] GET /api/v1/markets/category/:category - ✅ **IMPLEMENTED** (Filter by category)
+- [x] GET /api/v1/markets/:id - ✅ **IMPLEMENTED** (Single market - static data)
+- [x] GET /api/v1/markets/:id/live - ✅ **IMPLEMENTED** (Live odds from Polymarket)
+- [x] GET /api/v1/markets/:id/full - ✅ **IMPLEMENTED** (Combined static + live data)
+- [x] POST /api/v1/markets/ingest - ✅ **IMPLEMENTED** (Manual ingestion trigger)
 
-### Betting (3 endpoints)
-- [x] POST /api/v1/bets ✅ **IMPLEMENTED**
-- [x] GET /api/v1/bets/me (with filters, pagination) ✅ **IMPLEMENTED**
-- [x] GET /api/v1/bets/:betId ✅ **IMPLEMENTED**
+### Betting (4 endpoints)
+- [x] POST /api/v1/bets ✅ **IMPLEMENTED** (Place bet)
+- [x] GET /api/v1/bets/me (with filters, pagination) ✅ **IMPLEMENTED** (User's bets)
+- [x] GET /api/v1/bets/:betId ✅ **IMPLEMENTED** (Bet details)
+- [x] POST /api/v1/bets/:betId/sell ✅ **IMPLEMENTED** (Sell position - secondary market)
 
 ### Economy (5 endpoints)
 - [x] POST /api/v1/economy/daily-credits ✅ **IMPLEMENTED**
@@ -411,6 +430,27 @@ As of 2025-01-XX, V1 is **COMPLETE**:
 - ✅ **Redis Setup**
   - Connection configured with graceful fallback
   - System works without Redis (just slower)
+- ✅ **Rate Limiting System**
+  - Installed `@fastify/rate-limit` plugin
+  - Created configuration module with different limits per endpoint type
+  - Applied to all route groups (auth, betting, economy, purchases, markets)
+  - Per-user rate limiting (user ID or IP)
+  - Redis integration with graceful fallback
+
+### 2025-01-XX (Rate Limiting Implementation)
+- ✅ **Rate Limiting System Implemented**
+  - Installed `@fastify/rate-limit` plugin
+  - Created `src/lib/rate-limit.config.ts` configuration module
+  - Different rate limits for different endpoint types:
+    - Critical processes (betting, economy, purchases): 30 req/min
+    - Auth endpoints: 10 req/15min (prevents brute force)
+    - Standard endpoints: 100 req/min
+    - External API calls (market ingestion): 5 req/min
+  - Per-user rate limiting (uses user ID if authenticated, IP otherwise)
+  - Redis integration with graceful fallback to in-memory
+  - Applied to all route groups in `app/index.ts`
+  - Configurable via environment variables
+  - Error responses include retry-after information
 
 ### 2025-01-XX (Economy & Betting Implementation)
 - ✅ **Economy System Implemented**
@@ -569,18 +609,18 @@ As of 2025-01-XX, V1 is **COMPLETE**:
      - `src/lib/logger.ts` (Pino logger setup)
      - `src/lib/polymarket.ts` (API client - stub for now)
 
-#### Phase 2: Core Authentication (Week 1-2) - 🔄 IN PROGRESS
-1. **Auth Module** - ✅ PARTIALLY COMPLETE (2025-01-XX)
-   - ✅ Implement user registration (POST /api/v1/auth/signup)
-   - ✅ Implement login with JWT (POST /api/v1/auth/login)
-   - ✅ Add password hashing (bcrypt, 12 rounds)
+#### Phase 2: Core Authentication (Week 1-2) - ✅ COMPLETE (2025-01-XX)
+1. **Auth Module** - ✅ COMPLETE
+   - ✅ Implement OAuth authentication (GET /api/v1/auth/x, GET /api/v1/auth/x/callback)
+   - ✅ OAuth PKCE flow with X/Twitter
+   - ✅ OAuthAccount model for provider accounts
    - ✅ Create auth middleware (JWT verification)
    - ✅ Implement GET /api/v1/auth/me (user profile)
+   - ✅ Implement refresh token flow (POST /api/v1/auth/refresh)
+   - ✅ Implement logout (POST /api/v1/auth/logout)
    - ✅ Prisma client singleton created
-   - ✅ User model updated with `name` field
-   - [ ] Implement refresh token flow (POST /api/v1/auth/refresh)
-   - [ ] Implement logout (POST /api/v1/auth/logout)
-   - [ ] Write unit tests
+   - ✅ User model updated with optional passwordHash (OAuth users don't have passwords)
+   - ⚠️ Email/password signup/login controllers exist but routes NOT registered
    - [ ] Rate limiting for auth endpoints
 
 2. **User Module** - ⏳ PENDING

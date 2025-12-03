@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 
 export interface ReferralStats {
   referralCode: string;

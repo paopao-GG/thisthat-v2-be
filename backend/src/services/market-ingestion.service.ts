@@ -9,7 +9,7 @@
  * - Dynamic data (prices) is fetched on-demand when client requests it
  */
 
-import { prisma } from '../lib/database.js';
+import { marketsPrisma as prisma } from '../lib/database.js';
 import { getPolymarketClient, type PolymarketMarket } from '../lib/polymarket-client.js';
 import { retryWithBackoff } from '../lib/retry.js';
 
@@ -146,20 +146,31 @@ export async function ingestMarketsFromPolymarket(options?: {
   try {
     console.log('[Market Ingestion] Fetching markets from Polymarket...');
 
-    // Retry API call with exponential backoff
-    const markets = await retryWithBackoff(
+    // Retry API call with exponential backoff and circuit breaker
+    const { executeWithFailover, circuitBreakers } = await import('../lib/error-handler.js');
+    const markets = await executeWithFailover(
       () =>
-        client.getMarkets({
-          closed: !activeOnly, // false = active markets
-          limit,
-          offset: 0,
-        }),
+        circuitBreakers.polymarket.execute(
+          () => client.getMarkets({
+            closed: !activeOnly, // false = active markets
+            limit,
+            offset: 0,
+          })
+        ),
       {
-        maxRetries: 3,
-        initialDelayMs: 1000,
-        maxDelayMs: 10000,
+        circuitBreaker: circuitBreakers.polymarket,
+        retryOptions: {
+          maxRetries: 3,
+          initialDelayMs: 1000,
+          maxDelayMs: 10000,
+        },
+        serviceName: 'Polymarket Market Ingestion',
+        fallback: async () => {
+          console.warn('[Market Ingestion] Polymarket API unavailable, returning empty result');
+          return [];
+        },
       }
-    );
+    ) || [];
 
     if (!Array.isArray(markets)) {
       console.error(

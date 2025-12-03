@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import { generateTransactionHash } from '../../lib/transaction-signer.js';
 import type { BuyStockInput, SellStockInput } from './economy.models.js';
 

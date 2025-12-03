@@ -1,7 +1,9 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import { buyStockSchema, sellStockSchema } from './economy.models.js';
 import * as economyService from './economy.services.js';
+import { sendErrorResponse, sendValidationError, sendUnauthorizedError } from '../../lib/error-response.js';
+import { createStructuredError } from '../../lib/error-handler.js';
 
 /**
  * Claim daily credit allocation
@@ -10,10 +12,7 @@ export async function claimDailyCreditsHandler(request: FastifyRequest, reply: F
   try {
     const userId = (request.user as any)?.userId;
     if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Unauthorized',
-      });
+      return sendUnauthorizedError(reply);
     }
 
     const result = await economyService.processDailyCreditAllocation(userId);
@@ -25,11 +24,11 @@ export async function claimDailyCreditsHandler(request: FastifyRequest, reply: F
       nextAvailableAt: result.nextAvailableAt,
     });
   } catch (error: any) {
-    request.log.error({ error, stack: error.stack }, 'Daily credit claim error');
-    return reply.status(500).send({
-      success: false,
-      error: error.message || 'Failed to claim daily credits',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Daily credit claim error');
+    return sendErrorResponse(reply, error, 'Failed to claim daily credits');
   }
 }
 
@@ -40,10 +39,7 @@ export async function buyStockHandler(request: FastifyRequest, reply: FastifyRep
   try {
     const userId = (request.user as any)?.userId;
     if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Unauthorized',
-      });
+      return sendUnauthorizedError(reply);
     }
 
     const input = buyStockSchema.parse(request.body);
@@ -57,18 +53,14 @@ export async function buyStockHandler(request: FastifyRequest, reply: FastifyRep
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
-      return reply.status(400).send({
-        success: false,
-        error: 'Validation error',
-        details: error.errors,
-      });
+      return sendValidationError(reply, error.errors, 'Invalid stock purchase data');
     }
 
-    request.log.error({ error, stack: error.stack }, 'Buy stock error');
-    return reply.status(400).send({
-      success: false,
-      error: error.message || 'Failed to buy stock',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Buy stock error');
+    return sendErrorResponse(reply, error, 'Failed to buy stock');
   }
 }
 
@@ -79,10 +71,7 @@ export async function sellStockHandler(request: FastifyRequest, reply: FastifyRe
   try {
     const userId = (request.user as any)?.userId;
     if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Unauthorized',
-      });
+      return sendUnauthorizedError(reply);
     }
 
     const input = sellStockSchema.parse(request.body);
@@ -97,18 +86,14 @@ export async function sellStockHandler(request: FastifyRequest, reply: FastifyRe
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
-      return reply.status(400).send({
-        success: false,
-        error: 'Validation error',
-        details: error.errors,
-      });
+      return sendValidationError(reply, error.errors, 'Invalid stock sale data');
     }
 
-    request.log.error({ error, stack: error.stack }, 'Sell stock error');
-    return reply.status(400).send({
-      success: false,
-      error: error.message || 'Failed to sell stock',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Sell stock error');
+    return sendErrorResponse(reply, error, 'Failed to sell stock');
   }
 }
 
@@ -119,10 +104,7 @@ export async function getPortfolioHandler(request: FastifyRequest, reply: Fastif
   try {
     const userId = (request.user as any)?.userId;
     if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Unauthorized',
-      });
+      return sendUnauthorizedError(reply);
     }
 
     const portfolio = await economyService.getUserPortfolio(userId);
@@ -132,11 +114,11 @@ export async function getPortfolioHandler(request: FastifyRequest, reply: Fastif
       portfolio,
     });
   } catch (error: any) {
-    request.log.error({ error, stack: error.stack }, 'Get portfolio error');
-    return reply.status(500).send({
-      success: false,
-      error: 'Failed to get portfolio',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Get portfolio error');
+    return sendErrorResponse(reply, error, 'Failed to get portfolio');
   }
 }
 
@@ -159,11 +141,11 @@ export async function getStocksHandler(request: FastifyRequest, reply: FastifyRe
       stocks,
     });
   } catch (error: any) {
-    request.log.error({ error, stack: error.stack }, 'Get stocks error');
-    return reply.status(500).send({
-      success: false,
-      error: 'Failed to get stocks',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Get stocks error');
+    return sendErrorResponse(reply, error, 'Failed to get stocks');
   }
 }
 

@@ -1,24 +1,31 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma, marketsPrisma } from '../../lib/database.js';
 import type { PlaceBetInput, BetQueryInput } from './betting.models.js';
 import { getPolymarketClient } from '../../lib/polymarket-client.js';
 import { normalizeMarket } from '../fetching/market-data/market-data.services.js';
 import type { Prisma } from '@prisma/client';
+import { 
+  createStructuredError, 
+  ErrorType, 
+  executeWithFailover,
+  circuitBreakers 
+} from '../../lib/error-handler.js';
+import { retryWithBackoffSilent } from '../../lib/retry.js';
 
 const MIN_BET_AMOUNT = 10;
 const MAX_BET_AMOUNT = 10000;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Attempt to load a market from Postgres or create it on-the-fly from Polymarket.
+ * Attempt to load a market from markets database or create it on-the-fly from Polymarket.
+ * Note: Markets are in a separate database, so we query directly (not within a transaction).
  */
 async function findOrSyncMarket(
-  tx: Prisma.TransactionClient,
   marketIdentifier: string
 ) {
   console.log(`[findOrSyncMarket] Looking for market: ${marketIdentifier}`);
   
   // Try polymarketId first so conditionIds work out of the box
-  let market = await tx.market.findUnique({
+  let market = await marketsPrisma.market.findUnique({
     where: { polymarketId: marketIdentifier },
   });
 
@@ -29,7 +36,7 @@ async function findOrSyncMarket(
 
   // Fallback to UUID lookups when the frontend already knows the Postgres id
   if (UUID_REGEX.test(marketIdentifier)) {
-    market = await tx.market.findUnique({ where: { id: marketIdentifier } });
+    market = await marketsPrisma.market.findUnique({ where: { id: marketIdentifier } });
     if (market) {
       console.log(`[findOrSyncMarket] Found market by UUID: ${market.id}`);
       return market;
@@ -39,26 +46,45 @@ async function findOrSyncMarket(
   console.log(`[findOrSyncMarket] Market not in PostgreSQL cache, fetching from Polymarket API...`);
   
   // As a last resort, fetch the market from Polymarket and insert it locally
-  try {
-    const polymarketClient = getPolymarketClient();
-    
-    // Try direct market fetch first
-    let polymarket = await polymarketClient.getMarket(marketIdentifier);
-    
-    // If direct fetch fails, search through markets list
-    if (!polymarket) {
-      console.log(`[findOrSyncMarket] Direct fetch failed, searching markets list...`);
-      const markets = await polymarketClient.getMarkets({ limit: 1000 });
-      polymarket = markets.find(
-        (m) => m.conditionId === marketIdentifier || m.condition_id === marketIdentifier
-      ) || null;
+  // Use circuit breaker and retry for external API calls
+  const polymarket = await executeWithFailover(
+    async () => {
+      const polymarketClient = getPolymarketClient();
+      
+      // Try direct market fetch first
+      let market = await circuitBreakers.polymarket.execute(
+        () => polymarketClient.getMarket(marketIdentifier)
+      );
+      
+      // If direct fetch fails, search through markets list
+      if (!market) {
+        console.log(`[findOrSyncMarket] Direct fetch failed, searching markets list...`);
+        const markets = await retryWithBackoffSilent(
+          () => polymarketClient.getMarkets({ limit: 1000 }),
+          { maxRetries: 2 }
+        );
+        if (markets) {
+          market = markets.find(
+            (m) => m.conditionId === marketIdentifier || m.condition_id === marketIdentifier
+          ) || null;
+        }
+      }
+      
+      return market;
+    },
+    {
+      circuitBreaker: circuitBreakers.polymarket,
+      retryOptions: { maxRetries: 2, initialDelayMs: 1000 },
+      serviceName: 'Polymarket API',
     }
-    
-    if (!polymarket) {
-      console.error(`[findOrSyncMarket] Market not found in Polymarket API: ${marketIdentifier}`);
-      return null;
-    }
+  );
+  
+  if (!polymarket) {
+    console.error(`[findOrSyncMarket] Market not found in Polymarket API: ${marketIdentifier}`);
+    return null;
+  }
 
+  try {
     console.log(`[findOrSyncMarket] Fetched market from Polymarket: ${polymarket.conditionId || polymarket.condition_id}`);
     
     const normalized = normalizeMarket(polymarket);
@@ -68,7 +94,7 @@ async function findOrSyncMarket(
     }
 
     // Check if market was created while we were fetching (race condition)
-    const existingMarket = await tx.market.findUnique({
+    const existingMarket = await marketsPrisma.market.findUnique({
       where: { polymarketId: normalized.conditionId },
     });
     
@@ -85,7 +111,7 @@ async function findOrSyncMarket(
 
     console.log(`[findOrSyncMarket] Creating new market in DB: ${normalized.conditionId}`);
     
-    const newMarket = await tx.market.create({
+    const newMarket = await marketsPrisma.market.create({
       data: {
         polymarketId: normalized.conditionId,
         title: normalized.question,
@@ -105,7 +131,12 @@ async function findOrSyncMarket(
     console.log(`[findOrSyncMarket] Successfully created market: ${newMarket.id}`);
     return newMarket;
   } catch (error: any) {
-    console.error(`[findOrSyncMarket] Error fetching/creating market:`, error.message || error);
+    const structuredError = createStructuredError(error);
+    console.error(`[findOrSyncMarket] Error fetching/creating market:`, {
+      error: structuredError.message,
+      type: structuredError.type,
+      retryable: structuredError.retryable,
+    });
     return null;
   }
 }
@@ -121,12 +152,23 @@ export async function placeBet(
   newBalance: number;
   potentialPayout: number;
 }> {
-  return await prisma.$transaction(async (tx) => {
+  // First, find or sync the market (markets are in a separate database)
+  const market = await findOrSyncMarket(input.marketId);
+  if (!market) throw new Error('Market not found');
+  if (market.status !== 'open') throw new Error('Market is not open');
+  
+  // Check if market has expired
+  if (market.expiresAt && new Date() > market.expiresAt) {
+    throw new Error('Market has expired');
+  }
+
+  // Wrap in retry logic for database transaction failures
+  return await retryWithBackoffSilent(
+    async () => {
+      return await usersPrisma.$transaction(async (tx) => {
     // Get user
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-
-    const market = await findOrSyncMarket(tx, input.marketId);
     if (!market) throw new Error('Market not found');
     if (market.status !== 'open') throw new Error('Market is not open');
     
@@ -162,31 +204,16 @@ export async function placeBet(
     const balanceAfter = balanceBefore - input.amount;
 
     // Create bet record
-    // Use relation connects so Prisma doesn't require nested user object in strict mode
+    // Note: marketId is stored directly (no foreign key constraint since Market is in different database)
     const bet = await tx.bet.create({
       data: {
-        user: {
-          connect: { id: userId },
-        },
-        market: {
-          connect: { id: market.id },
-        },
+        userId: userId,
+        marketId: market.id,
         amount: input.amount,
         side: input.side,
         oddsAtBet: odds,
         potentialPayout,
         status: 'pending',
-      },
-      include: {
-        market: {
-          select: {
-            id: true,
-            title: true,
-            thisOption: true,
-            thatOption: true,
-            status: true,
-          },
-        },
       },
     });
 
@@ -216,12 +243,42 @@ export async function placeBet(
       },
     });
 
-    return {
-      bet,
-      newBalance: balanceAfter,
-      potentialPayout,
-    };
-  });
+        // Fetch market data to include in response (markets are in different database)
+        const marketData = {
+          id: market.id,
+          title: market.title,
+          thisOption: market.thisOption,
+          thatOption: market.thatOption,
+          status: market.status,
+        };
+
+        return {
+          bet: {
+            ...bet,
+            market: marketData,
+          },
+          newBalance: balanceAfter,
+          potentialPayout,
+        };
+      }, {
+        timeout: 10000, // 10 second timeout for transaction
+        isolationLevel: 'ReadCommitted', // Prevent deadlocks
+      });
+    },
+    {
+      maxRetries: 2,
+      initialDelayMs: 500,
+      retryableErrors: (error) => {
+        // Retry on database deadlocks and timeouts
+        return error.code === 'P2034' || // Deadlock
+               error.code === 'P1008' || // Operation timed out
+               error.message?.includes('timeout') ||
+               error.message?.includes('deadlock');
+      },
+    }
+  ) || (() => {
+    throw new Error('Failed to place bet after retries. Please try again.');
+  })();
 }
 
 /**
@@ -249,32 +306,41 @@ export async function getUserBets(
   }
 
   const [bets, total] = await Promise.all([
-    prisma.bet.findMany({
+    usersPrisma.bet.findMany({
       where,
-      include: {
-        market: {
-          select: {
-            id: true,
-            title: true,
-            thisOption: true,
-            thatOption: true,
-            status: true,
-            resolution: true,
-            resolvedAt: true,
-          },
-        },
-      },
       orderBy: {
         placedAt: 'desc',
       },
       take: query.limit,
       skip: query.offset,
     }),
-    prisma.bet.count({ where }),
+    usersPrisma.bet.count({ where }),
   ]);
 
+  // Fetch market data separately (markets are in a different database)
+  const marketIds = [...new Set(bets.map(bet => bet.marketId))];
+  const markets = await marketsPrisma.market.findMany({
+    where: { id: { in: marketIds } },
+    select: {
+      id: true,
+      title: true,
+      thisOption: true,
+      thatOption: true,
+      status: true,
+      resolution: true,
+      resolvedAt: true,
+    },
+  });
+  const marketMap = new Map(markets.map(m => [m.id, m]));
+
+  // Attach market data to bets
+  const betsWithMarkets = bets.map(bet => ({
+    ...bet,
+    market: marketMap.get(bet.marketId) || null,
+  }));
+
   return {
-    bets,
+    bets: betsWithMarkets,
     total,
     limit: query.limit,
     offset: query.offset,
@@ -285,29 +351,37 @@ export async function getUserBets(
  * Get bet by ID
  */
 export async function getBetById(betId: string, userId: string): Promise<any | null> {
-  const bet = await prisma.bet.findFirst({
+  const bet = await usersPrisma.bet.findFirst({
     where: {
       id: betId,
       userId, // Ensure user can only access their own bets
     },
-    include: {
-      market: {
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          thisOption: true,
-          thatOption: true,
-          status: true,
-          resolution: true,
-          resolvedAt: true,
-          expiresAt: true,
-        },
-      },
+  });
+
+  if (!bet) {
+    return null;
+  }
+
+  // Fetch market data separately (markets are in a different database)
+  const market = await marketsPrisma.market.findUnique({
+    where: { id: bet.marketId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      thisOption: true,
+      thatOption: true,
+      status: true,
+      resolution: true,
+      resolvedAt: true,
+      expiresAt: true,
     },
   });
 
-  return bet;
+  return {
+    ...bet,
+    market: market || null,
+  };
 }
 
 /**
@@ -324,64 +398,89 @@ export async function sellPosition(
   newBalance: number;
   currentValue: number;
 }> {
-  return await prisma.$transaction(async (tx) => {
-    // Get bet
-    const bet = await tx.bet.findUnique({
-      where: { id: betId },
-      include: {
-        user: true,
-        market: true,
-      },
-    });
+  // Wrap in retry logic for database transaction failures
+  return await retryWithBackoffSilent(
+    async () => {
+      // First, get the bet and market separately (markets are in a different database)
+      const bet = await usersPrisma.bet.findUnique({
+        where: { id: betId },
+        include: {
+          user: true,
+        },
+      });
 
-    if (!bet) {
-      throw new Error('Bet not found');
-    }
+      if (!bet) {
+        throw new Error('Bet not found');
+      }
 
-    // Verify ownership
-    if (bet.userId !== userId) {
-      throw new Error('Unauthorized: This bet does not belong to you');
-    }
+      if (bet.userId !== userId) {
+        throw new Error('Unauthorized');
+      }
 
-    // Check if bet is sellable (must be pending and market must be open)
-    if (bet.status !== 'pending') {
-      throw new Error(`Cannot sell: Bet status is ${bet.status}`);
-    }
+      if (bet.status !== 'pending') {
+        throw new Error('Bet is not pending');
+      }
 
-    if (bet.market.status !== 'open') {
-      throw new Error('Cannot sell: Market is not open');
-    }
+      // Fetch market from markets database
+      const market = await marketsPrisma.market.findUnique({
+        where: { id: bet.marketId },
+      });
 
-    // Check if market has expired
-    if (bet.market.expiresAt && new Date() > bet.market.expiresAt) {
-      throw new Error('Cannot sell: Market has expired');
-    }
+      if (!market) {
+        throw new Error('Market not found');
+      }
 
-    // Get current live odds from Polymarket
+      // Check if market is sellable
+      if (market.status !== 'open') {
+        throw new Error('Cannot sell: Market is not open');
+      }
+
+      // Check if market has expired
+      if (market.expiresAt && new Date() > market.expiresAt) {
+        throw new Error('Cannot sell: Market has expired');
+      }
+
+      return await usersPrisma.$transaction(async (tx) => {
+
+    // Get current live odds from Polymarket with failover
     let currentOdds: number;
-    if (bet.market.polymarketId) {
-      try {
-        const { fetchLivePriceData } = await import('../markets/markets.services.js');
-        const liveData = await fetchLivePriceData(bet.market.polymarketId);
-        
-        if (!liveData) {
-          throw new Error('Failed to fetch current market prices');
+    if (market.polymarketId) {
+      const liveData = await executeWithFailover(
+        async () => {
+          const { fetchLivePriceData } = await import('../markets/markets.services.js');
+          return await circuitBreakers.polymarket.execute(
+            () => fetchLivePriceData(market.polymarketId!)
+          );
+        },
+        {
+          circuitBreaker: circuitBreakers.polymarket,
+          retryOptions: { maxRetries: 2, initialDelayMs: 1000 },
+          serviceName: 'Polymarket Live Prices',
+          fallback: async () => {
+            // Fallback: use market's stored odds (may be stale)
+            console.warn(`[Sell Position] Using stored odds as fallback for market ${market.polymarketId}`);
+            return {
+              thisOdds: Number(market.thisOdds),
+              thatOdds: Number(market.thatOdds),
+            };
+          },
         }
-
+      );
+      
+      if (!liveData) {
+        // Final fallback if all retries and fallback fail
+        currentOdds = bet.side === 'this' 
+          ? Number(market.thisOdds) 
+          : Number(market.thatOdds);
+      } else {
         // Get current odds for the side user bet on
         currentOdds = bet.side === 'this' ? liveData.thisOdds : liveData.thatOdds;
-      } catch (error: any) {
-        console.error(`[Sell Position] Error fetching live odds: ${error.message}`);
-        // Fallback: use market's stored odds (may be stale)
-        currentOdds = bet.side === 'this' 
-          ? Number(bet.market.thisOdds) 
-          : Number(bet.market.thatOdds);
       }
     } else {
       // No Polymarket ID, use stored odds
       currentOdds = bet.side === 'this' 
-        ? Number(bet.market.thisOdds) 
-        : Number(bet.market.thatOdds);
+        ? Number(market.thisOdds) 
+        : Number(market.thatOdds);
     }
 
     // Calculate current value of position
@@ -457,12 +556,30 @@ export async function sellPosition(
       },
     });
 
-    return {
-      bet: updatedBet,
-      creditsReturned,
-      newBalance: balanceAfter,
-      currentValue: creditsReturned,
-    };
-  });
+        return {
+          bet: updatedBet,
+          creditsReturned,
+          newBalance: balanceAfter,
+          currentValue: creditsReturned,
+        };
+      }, {
+        timeout: 10000, // 10 second timeout for transaction
+        isolationLevel: 'ReadCommitted',
+      });
+    },
+    {
+      maxRetries: 2,
+      initialDelayMs: 500,
+      retryableErrors: (error) => {
+        // Retry on database deadlocks and timeouts
+        return error.code === 'P2034' || // Deadlock
+               error.code === 'P1008' || // Operation timed out
+               error.message?.includes('timeout') ||
+               error.message?.includes('deadlock');
+      },
+    }
+  ) || (() => {
+    throw new Error('Failed to sell position after retries. Please try again.');
+  })();
 }
 

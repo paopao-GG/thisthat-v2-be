@@ -6,9 +6,10 @@
  * - Live price data is fetched on-demand from Polymarket API
  */
 
-import { prisma } from '../../lib/database.js';
+import { marketsPrisma } from '../../lib/database.js';
 import { getPolymarketClient } from '../../lib/polymarket-client.js';
 import { retryWithBackoffSilent } from '../../lib/retry.js';
+import { executeWithFailover, circuitBreakers, createStructuredError } from '../../lib/error-handler.js';
 
 export interface MarketStaticData {
   id: string;
@@ -48,7 +49,7 @@ export interface MarketWithLiveData extends MarketStaticData {
  */
 export async function getRandomMarkets(count: number = 10): Promise<MarketStaticData[]> {
   // Get total count of open markets
-  const totalOpen = await prisma.market.count({
+  const totalOpen = await marketsPrisma.market.count({
     where: { status: 'open' },
   });
 
@@ -60,7 +61,7 @@ export async function getRandomMarkets(count: number = 10): Promise<MarketStatic
   const maxOffset = Math.max(0, totalOpen - count);
   const randomOffset = Math.floor(Math.random() * maxOffset);
 
-  const markets = await prisma.market.findMany({
+  const markets = await marketsPrisma.market.findMany({
     where: { status: 'open' },
     take: count,
     skip: randomOffset,
@@ -106,7 +107,7 @@ export async function getMarkets(options?: {
     where.category = { equals: options.category, mode: 'insensitive' };
   }
 
-  const markets = await prisma.market.findMany({
+  const markets = await marketsPrisma.market.findMany({
     where,
     take: options?.limit || 100,
     skip: options?.skip || 0,
@@ -162,7 +163,7 @@ export async function getMarketsByCategory(
  * Get a single market by ID (static data)
  */
 export async function getMarketById(marketId: string): Promise<MarketStaticData | null> {
-  const market = await prisma.market.findUnique({
+  const market = await marketsPrisma.market.findUnique({
     where: { id: marketId },
     select: {
       id: true,
@@ -194,7 +195,7 @@ export async function getMarketById(marketId: string): Promise<MarketStaticData 
  * Get a single market by Polymarket ID (static data)
  */
 export async function getMarketByPolymarketId(polymarketId: string): Promise<MarketStaticData | null> {
-  const market = await prisma.market.findUnique({
+  const market = await marketsPrisma.market.findUnique({
     where: { polymarketId },
     select: {
       id: true,
@@ -229,20 +230,28 @@ export async function getMarketByPolymarketId(polymarketId: string): Promise<Mar
 export async function fetchLivePriceData(polymarketId: string): Promise<MarketLiveData | null> {
   const client = getPolymarketClient();
 
-  try {
-    // Retry API call with exponential backoff (silent - returns null on failure)
-    const market = await retryWithBackoffSilent(
-      () => client.getMarket(polymarketId),
-      {
+  // Use circuit breaker and failover for external API calls
+  const market = await executeWithFailover(
+    () => circuitBreakers.polymarket.execute(
+      () => client.getMarket(polymarketId)
+    ),
+    {
+      circuitBreaker: circuitBreakers.polymarket,
+      retryOptions: {
         maxRetries: 2, // Fewer retries for client-facing API (faster failure)
         initialDelayMs: 500,
         maxDelayMs: 5000,
-      }
-    );
-
-    if (!market) {
-      return null;
+      },
+      serviceName: 'Polymarket Live Prices',
+      fallback: async () => null, // Return null if all retries fail
     }
+  );
+
+  if (!market) {
+    return null;
+  }
+
+  try {
 
     // Extract odds from tokens
     let outcomes: string[] = [];
@@ -274,8 +283,11 @@ export async function fetchLivePriceData(polymarketId: string): Promise<MarketLi
       acceptingOrders: market.accepting_orders ?? false,
     };
   } catch (error: any) {
-    // Error already logged by retryWithBackoffSilent
-    console.error(`[Markets Service] Failed to fetch live data for ${polymarketId} after retries`);
+    const structuredError = createStructuredError(error);
+    console.error(`[Markets Service] Failed to process live data for ${polymarketId}:`, {
+      error: structuredError.message,
+      type: structuredError.type,
+    });
     return null;
   }
 }
@@ -345,7 +357,7 @@ export async function getMarketWithLiveData(marketId: string): Promise<MarketWit
  * Get all available categories
  */
 export async function getCategories(): Promise<string[]> {
-  const categories = await prisma.market.groupBy({
+  const categories = await marketsPrisma.market.groupBy({
     by: ['category'],
     where: {
       status: 'open',

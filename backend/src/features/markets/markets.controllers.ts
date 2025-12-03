@@ -5,6 +5,8 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import * as marketsService from './markets.services.js';
 import { ingestMarketsFromPolymarket } from '../../services/market-ingestion.service.js';
+import { sendErrorResponse, sendValidationError } from '../../lib/error-response.js';
+import { createStructuredError } from '../../lib/error-handler.js';
 
 /**
  * Get markets with live prices
@@ -66,12 +68,11 @@ export async function getMarketsHandler(
       data: marketsWithPrices,
     });
   } catch (error: any) {
-    request.log.error({ error }, 'Failed to get markets');
-    return reply.status(500).send({
-      success: false,
-      error: 'Failed to get markets',
-      details: error.message || 'Unknown error',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Failed to get markets');
+    return sendErrorResponse(reply, error, 'Failed to get markets');
   }
 }
 

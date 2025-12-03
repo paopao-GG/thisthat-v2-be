@@ -1,5 +1,7 @@
 // Polymarket API Client (V1 - READ ONLY)
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import { retryWithBackoff } from './retry.js';
+import { circuitBreakers, ErrorType } from './error-handler.js';
 
 export interface PolymarketMarket {
   conditionId: string; // Polymarket uses camelCase
@@ -104,40 +106,52 @@ export class PolymarketClient {
     offset?: number;
     tag_id?: string;
   }): Promise<PolymarketMarket[]> {
-    try {
-      // Build query parameters for Gamma API
-      const queryParams: Record<string, string | number> = {};
-      
-      // Gamma API: closed=false means active markets, closed=true means closed markets
-      // If not specified, defaults to active markets (closed=false)
-      if (params?.closed !== undefined) {
-        queryParams.closed = params.closed.toString();
-      } else {
-        // Default to active markets if not specified
-        queryParams.closed = 'false';
-      }
-      if (params?.limit) {
-        queryParams.limit = params.limit;
-      }
-      if (params?.offset !== undefined) {
-        queryParams.offset = params.offset;
-      }
-      if (params?.tag_id) {
-        queryParams.tag_id = params.tag_id;
-      }
+    // Use circuit breaker and retry for external API calls
+    return await circuitBreakers.polymarket.execute(async () => {
+      return await retryWithBackoff(
+        async () => {
+          // Build query parameters for Gamma API
+          const queryParams: Record<string, string | number> = {};
+          
+          // Gamma API: closed=false means active markets, closed=true means closed markets
+          // If not specified, defaults to active markets (closed=false)
+          if (params?.closed !== undefined) {
+            queryParams.closed = params.closed.toString();
+          } else {
+            // Default to active markets if not specified
+            queryParams.closed = 'false';
+          }
+          if (params?.limit) {
+            queryParams.limit = params.limit;
+          }
+          if (params?.offset !== undefined) {
+            queryParams.offset = params.offset;
+          }
+          if (params?.tag_id) {
+            queryParams.tag_id = params.tag_id;
+          }
 
-      const response = await this.client.get('/markets', { params: queryParams });
-      
-      // Gamma API returns array directly or wrapped in data property
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      // Some endpoints wrap in { data: [...] } or { markets: [...] }
-      return response.data?.data || response.data?.markets || [];
-    } catch (error: any) {
-      console.error('Error fetching Polymarket markets:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch markets from Polymarket: ${error.message}`);
-    }
+          const response = await this.client.get('/markets', { params: queryParams });
+          
+          // Gamma API returns array directly or wrapped in data property
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+          // Some endpoints wrap in { data: [...] } or { markets: [...] }
+          return response.data?.data || response.data?.markets || [];
+        },
+        {
+          maxRetries: 3,
+          initialDelayMs: 1000,
+          retryableErrors: (error: any) => {
+            // Retry on rate limits (429), network errors, and 5xx errors
+            if (!error.response) return true; // Network error
+            const status = error.response.status;
+            return status === 429 || status >= 500;
+          },
+        }
+      );
+    });
   }
 
   /**
@@ -145,10 +159,26 @@ export class PolymarketClient {
    */
   async getMarket(conditionId: string): Promise<PolymarketMarket | null> {
     try {
-      const response = await this.client.get(`/markets/${conditionId}`);
-      return response.data || null;
-    } catch (error) {
-      console.error(`Error fetching market ${conditionId}:`, error);
+      return await circuitBreakers.polymarket.execute(async () => {
+        return await retryWithBackoff(
+          async () => {
+            const response = await this.client.get(`/markets/${conditionId}`);
+            return response.data || null;
+          },
+          {
+            maxRetries: 2,
+            initialDelayMs: 1000,
+            retryableErrors: (error: any) => {
+              if (!error.response) return true; // Network error
+              const status = error.response.status;
+              return status === 429 || status >= 500;
+            },
+          }
+        );
+      });
+    } catch (error: any) {
+      // Return null on failure (graceful degradation)
+      console.error(`Error fetching market ${conditionId}:`, error.message);
       return null;
     }
   }
@@ -168,43 +198,54 @@ export class PolymarketClient {
     order?: string;
     ascending?: boolean;
   }): Promise<PolymarketEvent[]> {
-    try {
-      // Build query parameters for Gamma API
-      const queryParams: Record<string, string | number | boolean> = {};
-      
-      if (params?.closed !== undefined) {
-        queryParams.closed = params.closed.toString();
-      }
-      if (params?.limit) {
-        queryParams.limit = params.limit;
-      }
-      if (params?.offset) {
-        queryParams.offset = params.offset;
-      }
-      if (params?.tag_id) {
-        queryParams.tag_id = params.tag_id;
-      }
-      if (params?.featured !== undefined) {
-        queryParams.featured = params.featured.toString();
-      }
-      if (params?.order) {
-        queryParams.order = params.order;
-      }
-      if (params?.ascending !== undefined) {
-        queryParams.ascending = params.ascending.toString();
-      }
+    // Use circuit breaker and retry for external API calls
+    return await circuitBreakers.polymarket.execute(async () => {
+      return await retryWithBackoff(
+        async () => {
+          // Build query parameters for Gamma API
+          const queryParams: Record<string, string | number | boolean> = {};
+          
+          if (params?.closed !== undefined) {
+            queryParams.closed = params.closed.toString();
+          }
+          if (params?.limit) {
+            queryParams.limit = params.limit;
+          }
+          if (params?.offset) {
+            queryParams.offset = params.offset;
+          }
+          if (params?.tag_id) {
+            queryParams.tag_id = params.tag_id;
+          }
+          if (params?.featured !== undefined) {
+            queryParams.featured = params.featured.toString();
+          }
+          if (params?.order) {
+            queryParams.order = params.order;
+          }
+          if (params?.ascending !== undefined) {
+            queryParams.ascending = params.ascending.toString();
+          }
 
-      const response = await this.client.get('/events', { params: queryParams });
-      
-      // Gamma API returns array directly or wrapped
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      return response.data?.data || response.data?.events || [];
-    } catch (error: any) {
-      console.error('Error fetching Polymarket events:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch events from Polymarket: ${error.message}`);
-    }
+          const response = await this.client.get('/events', { params: queryParams });
+          
+          // Gamma API returns array directly or wrapped
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+          return response.data?.data || response.data?.events || [];
+        },
+        {
+          maxRetries: 3,
+          initialDelayMs: 1000,
+          retryableErrors: (error: any) => {
+            if (!error.response) return true; // Network error
+            const status = error.response.status;
+            return status === 429 || status >= 500;
+          },
+        }
+      );
+    });
   }
 
   /**

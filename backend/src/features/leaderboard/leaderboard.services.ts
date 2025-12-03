@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import { safeRedisGet, safeRedisSetEx, safeRedisDel, safeRedisKeys } from '../../lib/redis.js';
 
 const LEADERBOARD_CACHE_TTL = 5 * 60; // 5 minutes in seconds

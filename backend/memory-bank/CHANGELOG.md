@@ -2,6 +2,63 @@
 
 All notable changes to the THISTHAT Backend project will be documented in this file.
 
+## [V1.0.8] - 2025-01-XX - Rate Limiting Implementation
+
+### ✅ Added - Rate Limiting System
+- **Rate Limiting Package**
+  - Installed `@fastify/rate-limit` plugin
+  - Integrated with Fastify application
+
+- **Configuration Module**
+  - Created `backend/src/lib/rate-limit.config.ts`
+  - Different rate limit configurations for different endpoint types:
+    - Critical processes: 30 requests/minute (betting, economy, purchases)
+    - Auth endpoints: 10 requests/15 minutes (prevents brute force)
+    - Standard endpoints: 100 requests/minute (general API)
+    - External API calls: 5 requests/minute (market ingestion)
+    - Background jobs: 1 request/minute (internal jobs)
+
+- **Per-User Rate Limiting**
+  - Uses user ID if authenticated, IP address otherwise
+  - Prevents abuse from individual users
+  - Distributed rate limiting via Redis (if available)
+
+- **Redis Integration**
+  - Uses Redis for distributed rate limiting when available
+  - Graceful fallback to in-memory storage if Redis unavailable
+  - Automatic detection and configuration
+
+- **Route Group Protection**
+  - Global rate limit: 100 req/min (standard endpoints)
+  - Auth routes: 10 req/15min (stricter)
+  - Betting routes: 30 req/min (critical)
+  - Economy routes: 30 req/min (critical)
+  - Purchase routes: 30 req/min (critical)
+  - Market ingestion: 5 req/min (external API)
+
+- **Environment Configuration**
+  - All rate limits configurable via environment variables
+  - Updated `env.template` with rate limiting configuration
+  - Default values provided for all limits
+
+- **Error Responses**
+  - Rate limit errors include retry-after information
+  - Clear error messages for rate limit exceeded
+  - Limit and remaining count in response headers
+
+### 🔒 Security Improvements
+- Protection against DDoS attacks
+- Prevention of brute force attacks on auth endpoints
+- Rate limiting for critical financial operations
+- External API call protection
+
+### 📝 Files Modified
+- `backend/package.json` - Added `@fastify/rate-limit` dependency
+- `backend/src/lib/rate-limit.config.ts` - New configuration module
+- `backend/src/app/index.ts` - Registered rate limiting plugins
+- `backend/src/features/markets/markets.routes.ts` - Applied to ingestion endpoint
+- `backend/env.template` - Added rate limiting configuration variables
+
 ## [V1.0.7] - 2025-01-XX - Leaderboard Page Functional
 
 ### ✅ Added - Leaderboard Service

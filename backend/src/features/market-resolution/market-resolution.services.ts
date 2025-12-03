@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { marketsPrisma, usersPrisma } from '../../lib/database.js';
 import { getPolymarketClient } from '../../lib/polymarket-client.js';
 
 /**
@@ -71,8 +71,8 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
   };
 
   try {
-    // Update market status
-    await prisma.market.update({
+    // Update market status (markets database)
+    await marketsPrisma.market.update({
       where: { id: marketId },
       data: {
         status: 'resolved',
@@ -81,22 +81,21 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
       },
     });
 
-    // Get all pending bets for this market
-    const pendingBets = await prisma.bet.findMany({
+    // Get all pending bets for this market (users database)
+    const pendingBets = await usersPrisma.bet.findMany({
       where: {
         marketId,
         status: 'pending',
       },
       include: {
         user: true,
-        market: true,
       },
     });
 
     // Process bets in batches
     for (const bet of pendingBets) {
       try {
-        await prisma.$transaction(async (tx) => {
+        await usersPrisma.$transaction(async (tx) => {
           if (resolution === 'invalid') {
             // Refund bet amount
             await tx.user.update({
@@ -214,8 +213,8 @@ export async function checkAndResolveMarkets(): Promise<{
   };
 
   try {
-    // Find markets that are closed but not yet resolved
-    const marketsToCheck = await prisma.market.findMany({
+    // Find markets that are closed but not yet resolved (markets database)
+    const marketsToCheck = await marketsPrisma.market.findMany({
       where: {
         status: 'open',
         polymarketId: { not: null },

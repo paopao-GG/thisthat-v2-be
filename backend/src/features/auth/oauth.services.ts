@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/database.js';
+import { usersPrisma as prisma } from '../../lib/database.js';
 import { hashPassword } from './auth.services.js';
 import type { FastifyJWT } from '@fastify/jwt';
 import crypto from 'node:crypto';

@@ -1,6 +1,8 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { placeBetSchema, betQuerySchema, sellPositionSchema } from './betting.models.js';
 import * as bettingService from './betting.services.js';
+import { createStructuredError, ErrorType } from '../../lib/error-handler.js';
+import { sendErrorResponse, sendValidationError, sendNotFoundError, sendUnauthorizedError } from '../../lib/error-response.js';
 
 /**
  * Place a bet
@@ -29,14 +31,34 @@ export async function placeBetHandler(request: FastifyRequest, reply: FastifyRep
       return reply.status(400).send({
         success: false,
         error: 'Validation error',
+        code: ErrorType.VALIDATION,
         details: error.errors,
       });
     }
 
-    request.log.error({ error, stack: error.stack }, 'Place bet error');
-    return reply.status(400).send({
+    const structuredError = createStructuredError(error);
+    request.log.error({ 
+      error: structuredError, 
+      stack: error.stack 
+    }, 'Place bet error');
+
+    const statusCode = structuredError.type === ErrorType.INSUFFICIENT_BALANCE 
+      ? 400 
+      : structuredError.type === ErrorType.MARKET_CLOSED 
+      ? 400 
+      : structuredError.type === ErrorType.NOT_FOUND
+      ? 404
+      : structuredError.retryable 
+      ? 503 
+      : 400;
+
+    return reply.status(statusCode).send({
       success: false,
-      error: error.message || 'Failed to place bet',
+      error: structuredError.message,
+      code: structuredError.code,
+      type: structuredError.type,
+      retryable: structuredError.retryable,
+      retryAfter: structuredError.retryAfter,
     });
   }
 }
@@ -85,27 +107,18 @@ export async function getBetByIdHandler(request: FastifyRequest, reply: FastifyR
   try {
     const userId = (request.user as any)?.userId;
     if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Unauthorized',
-      });
+      return sendUnauthorizedError(reply);
     }
 
     const betId = (request.params as any).betId;
     if (!betId) {
-      return reply.status(400).send({
-        success: false,
-        error: 'Bet ID is required',
-      });
+      return sendValidationError(reply, [{ path: ['betId'], message: 'Bet ID is required' }], 'Bet ID is required');
     }
 
     const bet = await bettingService.getBetById(betId, userId);
 
     if (!bet) {
-      return reply.status(404).send({
-        success: false,
-        error: 'Bet not found',
-      });
+      return sendNotFoundError(reply, 'Bet');
     }
 
     return reply.send({
@@ -113,11 +126,11 @@ export async function getBetByIdHandler(request: FastifyRequest, reply: FastifyR
       bet,
     });
   } catch (error: any) {
-    request.log.error({ error, stack: error.stack }, 'Get bet error');
-    return reply.status(500).send({
-      success: false,
-      error: 'Failed to get bet',
-    });
+    request.log.error({ 
+      error: createStructuredError(error), 
+      stack: error.stack 
+    }, 'Get bet error');
+    return sendErrorResponse(reply, error, 'Failed to get bet');
   }
 }
 
@@ -157,14 +170,30 @@ export async function sellPositionHandler(request: FastifyRequest, reply: Fastif
       return reply.status(400).send({
         success: false,
         error: 'Validation error',
+        code: ErrorType.VALIDATION,
         details: error.errors,
       });
     }
 
-    request.log.error({ error, stack: error.stack }, 'Sell position error');
-    return reply.status(400).send({
+    const structuredError = createStructuredError(error);
+    request.log.error({ 
+      error: structuredError, 
+      stack: error.stack 
+    }, 'Sell position error');
+
+    const statusCode = structuredError.type === ErrorType.NOT_FOUND
+      ? 404
+      : structuredError.retryable 
+      ? 503 
+      : 400;
+
+    return reply.status(statusCode).send({
       success: false,
-      error: error.message || 'Failed to sell position',
+      error: structuredError.message,
+      code: structuredError.code,
+      type: structuredError.type,
+      retryable: structuredError.retryable,
+      retryAfter: structuredError.retryAfter,
     });
   }
 }
