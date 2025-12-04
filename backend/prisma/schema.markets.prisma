@@ -22,9 +22,15 @@ model Market {
   thisOption      String   @map("this_option") @db.VarChar(255)
   thatOption      String   @map("that_option") @db.VarChar(255)
 
-  // Odds (e.g., 0.6500 = 65%)
-  thisOdds        Decimal  @map("this_odds") @db.Decimal(5, 4)
-  thatOdds        Decimal  @map("that_odds") @db.Decimal(5, 4)
+  // AMM Reserves (CPMM: yesReserve * noReserve = k)
+  yesReserve      Decimal  @default(1000.00) @map("yes_reserve") @db.Decimal(20, 8)
+  noReserve       Decimal  @default(1000.00) @map("no_reserve") @db.Decimal(20, 8)
+
+  // Legacy odds fields (computed from reserves, not stored)
+  // thisOdds = noReserve / (yesReserve + noReserve)
+  // thatOdds = yesReserve / (yesReserve + noReserve)
+  thisOdds        Decimal? @map("this_odds") @db.Decimal(5, 4)
+  thatOdds        Decimal? @map("that_odds") @db.Decimal(5, 4)
 
   // Market metadata
   liquidity       Decimal? @db.Decimal(18, 2)

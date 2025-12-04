@@ -127,10 +127,20 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
             stats.cancelled++;
           } else {
             const isWinner = bet.side === resolution;
-            
+
             if (isWinner) {
-              // Winning bet - credit payout
-              const payout = Number(bet.potentialPayout);
+              // Determine if this is an AMM bet (share-based) or legacy bet (odds-based)
+              const isAMMBet = Number(bet.sharesReceived) > 0;
+
+              let payout: number;
+              if (isAMMBet) {
+                // AMM: Winning shares pay 1 credit each
+                payout = Number(bet.sharesReceived);
+              } else {
+                // Legacy: Use potentialPayout from odds
+                payout = Number(bet.potentialPayout);
+              }
+
               const betAmount = Number(bet.amount);
               const profit = payout - betAmount;
 
@@ -164,7 +174,7 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
 
               stats.won++;
             } else {
-              // Losing bet - update PnL
+              // Losing bet - update PnL (shares become worthless)
               await tx.user.update({
                 where: { id: bet.userId },
                 data: {
@@ -176,6 +186,7 @@ export async function resolveMarket(marketId: string, resolution: 'this' | 'that
                 where: { id: bet.id },
                 data: {
                   status: 'lost',
+                  actualPayout: 0, // Losing shares are worth 0
                   resolvedAt: new Date(),
                 },
               });

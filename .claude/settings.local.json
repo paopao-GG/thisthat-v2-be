@@ -10,7 +10,10 @@
       "Bash(npm run list:categories:*)",
       "Bash(npm run test:prefetch:*)",
       "Bash(timeout 30 npx tsx:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

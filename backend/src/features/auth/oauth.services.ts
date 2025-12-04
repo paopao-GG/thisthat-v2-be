@@ -45,6 +45,28 @@ export interface OAuthState {
 const oauthStateStore = new Map<string, OAuthState>();
 
 /**
+ * Get the appropriate redirect URI based on environment
+ */
+function getRedirectUri(): string {
+  // Check if we have an explicit redirect URI from env
+  if (process.env.X_REDIRECT_URI) {
+    return process.env.X_REDIRECT_URI;
+  }
+
+  // Otherwise, construct from backend URL
+  const port = process.env.PORT || '3001';
+  const host = process.env.HOST || '0.0.0.0';
+
+  // In development, use localhost
+  if (process.env.NODE_ENV === 'development') {
+    return `http://localhost:${port}/api/v1/auth/x/callback`;
+  }
+
+  // In production, construct from host
+  return `http://${host}:${port}/api/v1/auth/x/callback`;
+}
+
+/**
  * Generate OAuth authorization URL for X
  */
 export function getXAuthUrl(): { url: string; state: string; codeVerifier: string } {
@@ -69,10 +91,13 @@ export function getXAuthUrl(): { url: string; state: string; codeVerifier: strin
   // Format: base64(state:codeVerifier) - we'll decode it in callback if needed
   const stateWithVerifier = Buffer.from(`${state}:${codeVerifier}`).toString('base64url');
 
+  // Get the appropriate redirect URI
+  const redirectUri = getRedirectUri();
+
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.X_CLIENT_ID!,
-    redirect_uri: process.env.X_REDIRECT_URI!,
+    redirect_uri: redirectUri,
     scope: 'tweet.read users.read offline.access',
     state: stateWithVerifier, // Pass encoded state with verifier
     code_challenge: codeChallenge,
@@ -80,6 +105,8 @@ export function getXAuthUrl(): { url: string; state: string; codeVerifier: strin
   });
 
   const url = `${X_AUTH_URL}?${params.toString()}`;
+
+  console.log('[OAuth] Generated auth URL with redirect_uri:', redirectUri);
 
   return { url, state, codeVerifier };
 }
@@ -121,6 +148,9 @@ async function exchangeCodeForToken(
   code: string,
   codeVerifier: string
 ): Promise<{ accessToken: string; refreshToken?: string }> {
+  // Must use the SAME redirect_uri that was used in the authorization request
+  const redirectUri = getRedirectUri();
+
   const response = await fetch(X_TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -132,7 +162,7 @@ async function exchangeCodeForToken(
     body: new URLSearchParams({
       code,
       grant_type: 'authorization_code',
-      redirect_uri: process.env.X_REDIRECT_URI!,
+      redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }),
   });

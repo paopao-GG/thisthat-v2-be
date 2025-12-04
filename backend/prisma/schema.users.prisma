@@ -85,17 +85,22 @@ model OAuthAccount {
   @@map("oauth_accounts")
 }
 
-// Bet model - User bets on markets
+// Bet model - User bets on markets (AMM share-based)
 // Note: marketId references Market.id in the markets database (no foreign key constraint)
 model Bet {
   id               String   @id @default(uuid()) @db.Uuid
   userId           String   @map("user_id") @db.Uuid
   marketId         String   @map("market_id") @db.Uuid // References Market.id in markets database
 
-  amount           Decimal  @db.Decimal(18, 2)
+  // AMM fields
+  amount           Decimal  @db.Decimal(18, 2) // Credits spent
   side             String   @db.VarChar(10) // 'this' or 'that'
-  oddsAtBet        Decimal  @map("odds_at_bet") @db.Decimal(5, 4)
-  potentialPayout  Decimal  @map("potential_payout") @db.Decimal(18, 2)
+  sharesReceived   Decimal  @default(0) @map("shares_received") @db.Decimal(20, 8) // Shares received from AMM
+  priceAtBet       Decimal  @default(0.5) @map("price_at_bet") @db.Decimal(10, 8) // Price when bet was placed
+
+  // Legacy fields (for backwards compatibility)
+  oddsAtBet        Decimal? @map("odds_at_bet") @db.Decimal(5, 4)
+  potentialPayout  Decimal? @map("potential_payout") @db.Decimal(18, 2)
   actualPayout     Decimal? @map("actual_payout") @db.Decimal(18, 2)
 
   status           String   @default("pending") @db.VarChar(50) // 'pending', 'won', 'lost', 'cancelled'

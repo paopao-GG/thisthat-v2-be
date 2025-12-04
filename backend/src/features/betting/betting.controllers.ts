@@ -3,9 +3,17 @@ import { placeBetSchema, betQuerySchema, sellPositionSchema } from './betting.mo
 import * as bettingService from './betting.services.js';
 import { createStructuredError, ErrorType } from '../../lib/error-handler.js';
 import { sendErrorResponse, sendValidationError, sendNotFoundError, sendUnauthorizedError } from '../../lib/error-response.js';
+import { z } from 'zod';
+
+// Trade quote schema
+const tradeQuoteSchema = z.object({
+  marketId: z.string().uuid(),
+  amount: z.number().positive().min(10).max(10000),
+  side: z.enum(['this', 'that']),
+});
 
 /**
- * Place a bet
+ * Place a bet using AMM (share-based)
  */
 export async function placeBetHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -18,13 +26,17 @@ export async function placeBetHandler(request: FastifyRequest, reply: FastifyRep
     }
 
     const input = placeBetSchema.parse(request.body);
-    const result = await bettingService.placeBet(userId, input);
+
+    // Use AMM service for share-based betting
+    const result = await bettingService.placeBetAMM(userId, input);
 
     return reply.status(201).send({
       success: true,
       bet: result.bet,
       newBalance: result.newBalance,
-      potentialPayout: result.potentialPayout,
+      sharesReceived: result.sharesReceived,
+      priceImpact: result.priceImpact,
+      newProbability: result.newProbability,
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
@@ -135,7 +147,7 @@ export async function getBetByIdHandler(request: FastifyRequest, reply: FastifyR
 }
 
 /**
- * Sell a position early (before market expires)
+ * Sell a position early using AMM (before market expires)
  */
 export async function sellPositionHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -155,15 +167,14 @@ export async function sellPositionHandler(request: FastifyRequest, reply: Fastif
       });
     }
 
-    const input = sellPositionSchema.parse(request.body || {});
-    const result = await bettingService.sellPosition(userId, betId, input);
+    // Use AMM service to sell shares
+    const result = await bettingService.sellPositionAMM(userId, betId);
 
     return reply.send({
       success: true,
-      bet: result.bet,
-      creditsReturned: result.creditsReturned,
-      newBalance: result.newBalance,
-      currentValue: result.currentValue,
+      creditsReceived: result.creditsReceived,
+      profit: result.profit,
+      priceImpact: result.priceImpact,
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
@@ -183,8 +194,8 @@ export async function sellPositionHandler(request: FastifyRequest, reply: Fastif
 
     const statusCode = structuredError.type === ErrorType.NOT_FOUND
       ? 404
-      : structuredError.retryable 
-      ? 503 
+      : structuredError.retryable
+      ? 503
       : 400;
 
     return reply.status(statusCode).send({
@@ -198,3 +209,44 @@ export async function sellPositionHandler(request: FastifyRequest, reply: Fastif
   }
 }
 
+/**
+ * Get trade quote (preview trade without executing)
+ */
+export async function getTradeQuoteHandler(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const query = tradeQuoteSchema.parse(request.query);
+
+    const quote = await bettingService.getTradeQuote(
+      query.marketId,
+      query.amount,
+      query.side
+    );
+
+    return reply.send({
+      success: true,
+      ...quote,
+    });
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation error',
+        code: ErrorType.VALIDATION,
+        details: error.errors,
+      });
+    }
+
+    const structuredError = createStructuredError(error);
+    request.log.error({
+      error: structuredError,
+      stack: error.stack
+    }, 'Get trade quote error');
+
+    return reply.status(400).send({
+      success: false,
+      error: structuredError.message,
+      code: structuredError.code,
+      type: structuredError.type,
+    });
+  }
+}

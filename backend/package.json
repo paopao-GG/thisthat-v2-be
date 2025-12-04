@@ -34,7 +34,8 @@
     "db:push:users": "prisma db push --schema=prisma/schema.users.prisma",
     "db:seed": "tsx prisma/seed.ts",
     "stats": "tsx scripts/show-category-stats.ts",
-    "test:prefetch": "tsx scripts/test-category-prefetch.ts"
+    "test:prefetch": "tsx scripts/test-category-prefetch.ts",
+    "test:amm": "tsx scripts/test-amm-endpoints.ts"
   },
   "keywords": [],
   "author": "",

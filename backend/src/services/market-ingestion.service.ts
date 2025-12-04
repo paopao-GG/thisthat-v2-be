@@ -12,6 +12,7 @@
 import { marketsPrisma as prisma } from '../lib/database.js';
 import { getPolymarketClient, type PolymarketMarket } from '../lib/polymarket-client.js';
 import { retryWithBackoff } from '../lib/retry.js';
+import { initializePoolWithProbability } from './amm.service.js';
 
 export interface MarketIngestionResult {
   total: number;
@@ -112,14 +113,31 @@ function extractStaticData(market: PolymarketMarket) {
     }
   }
 
+  // Calculate AMM reserves based on Polymarket probability
+  // Default total liquidity: 10,000 (5x larger than initial 2,000 for better price stability)
+  const INITIAL_LIQUIDITY = 10000;
+  const yesProbability = clampOdds(thisTokenPrice); // Probability of YES (this)
+
+  // Initialize pool with the probability from Polymarket
+  // P(YES) = noReserve / (yesReserve + noReserve)
+  // noReserve = P(YES) * L, yesReserve = (1 - P(YES)) * L
+  const pool = initializePoolWithProbability(INITIAL_LIQUIDITY, yesProbability);
+
   return {
     polymarketId: market.conditionId || market.condition_id,
     title: market.question,
     description: market.description || null,
     thisOption,
     thatOption,
-    thisOdds: clampOdds(thisTokenPrice),
+
+    // AMM reserves (primary pricing mechanism)
+    yesReserve: pool.yesReserve,
+    noReserve: pool.noReserve,
+
+    // Legacy odds (computed from reserves for backwards compatibility)
+    thisOdds: yesProbability,
     thatOdds: clampOdds(thatTokenPrice ?? (thisTokenPrice ? 1 - thisTokenPrice : undefined)),
+
     liquidity: typeof market.liquidity === 'number' ? Number(market.liquidity) : null,
     category,
     marketType: 'polymarket' as const,
@@ -245,25 +263,40 @@ export async function ingestMarketsFromPolymarket(options?: {
 
         if (existing) {
           // Update existing market (only static fields)
+          // DON'T overwrite reserves if users have already placed bets
+          // Only update reserves if no bets exist (market is fresh)
+          const updateData: any = {
+            title: staticData.title,
+            description: staticData.description,
+            thisOption: staticData.thisOption,
+            thatOption: staticData.thatOption,
+            thisOdds: staticData.thisOdds,
+            thatOdds: staticData.thatOdds,
+            liquidity: staticData.liquidity,
+            category: staticData.category,
+            status: staticData.status,
+            expiresAt: staticData.expiresAt,
+            updatedAt: new Date(),
+          };
+
+          // Only update reserves if they're still at default values (no bets placed)
+          // Default reserves are 1000/1000 (50-50 probability)
+          // @ts-ignore - yesReserve/noReserve not in current Prisma types until regenerated
+          const currentYes = Number(existing.yesReserve || 1000);
+          // @ts-ignore
+          const currentNo = Number(existing.noReserve || 1000);
+          if (currentYes === 1000 && currentNo === 1000) {
+            updateData.yesReserve = staticData.yesReserve;
+            updateData.noReserve = staticData.noReserve;
+          }
+
           await prisma.market.update({
             where: { polymarketId: staticData.polymarketId },
-            data: {
-              title: staticData.title,
-              description: staticData.description,
-              thisOption: staticData.thisOption,
-              thatOption: staticData.thatOption,
-              thisOdds: staticData.thisOdds,
-              thatOdds: staticData.thatOdds,
-              liquidity: staticData.liquidity,
-              category: staticData.category,
-              status: staticData.status,
-              expiresAt: staticData.expiresAt,
-              updatedAt: new Date(),
-            },
+            data: updateData,
           });
           result.updated++;
         } else {
-          // Create new market
+          // Create new market with AMM reserves
           await prisma.market.create({
             data: staticData,
           });

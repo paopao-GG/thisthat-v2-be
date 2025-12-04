@@ -11,6 +11,13 @@ import {
 } from '../../lib/error-handler.js';
 import { retryWithBackoffSilent } from '../../lib/retry.js';
 
+// Re-export AMM functions for use by controllers
+export {
+  placeBetAMM,
+  sellPosition as sellPositionAMM,
+  getTradeQuote,
+} from './betting.services.amm.js';
+
 const MIN_BET_AMOUNT = 10;
 const MAX_BET_AMOUNT = 10000;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -169,6 +169,53 @@
 
 ---
 
+---
+
+## 11. **AMM (Automated Market Maker) Implementation** 🟢 FEATURE ADDITION
+**Status:** ✅ Accomplished
+**Impact:** Major System Upgrade - Polymarket-Style Betting
+**Effort:** High (12-16 hours) - ✅ COMPLETE
+
+- ✅ Implemented Constant Product Market Maker (CPMM) formula: `x * y = k`
+- ✅ Created complete AMM service with buy/sell functions
+- ✅ Transformed betting from odds-based to share-based
+- ✅ Added dynamic pricing with price impact calculations
+- ✅ Implemented early position selling (sell before resolution)
+- ✅ Database schema updates:
+  - ✅ Markets: Added `yesReserve`, `noReserve` (AMM reserves)
+  - ✅ Bets: Added `sharesReceived`, `priceAtBet` (share tracking)
+- ✅ Updated market resolution for share-based payouts (1 share = 1 credit if wins)
+- ✅ Reserve initialization on market creation/import synced with Polymarket odds
+- ✅ REST API endpoints:
+  - ✅ `POST /api/v1/bets` - Place bet using AMM (updated)
+  - ✅ `POST /api/v1/bets/:id/sell` - Sell position early (updated)
+  - ✅ `GET /api/v1/bets/quote` - Get trade quote (new, public)
+- ✅ Backwards compatible with legacy odds-based bets
+- ✅ 0.3% trading fee (30 basis points)
+- ✅ Initial liquidity: 10,000 per market for better price stability
+- **Implementation:**
+  - `src/services/amm.service.ts` - Core CPMM logic
+  - `src/features/betting/betting.services.amm.ts` - AMM betting service
+  - Updated controllers, routes, market ingestion, and resolution services
+- **Documentation:**
+  - `AMM_IMPLEMENTATION_COMPLETE.md` - Complete implementation summary
+  - `AMM_DEPLOYMENT_GUIDE.md` - Step-by-step deployment guide
+  - `CPMM_IMPLEMENTATION_GUIDE.md` - Technical specification
+  - `thisthat-cpmm-full-guide.md` - Original design document
+- **Testing:**
+  - `scripts/test-amm-endpoints.ts` - Comprehensive test suite
+  - `migrate-amm.bat` - Windows migration script
+  - `npm run test:amm` - Test command added to package.json
+- **Benefits:**
+  - Dynamic pricing based on supply/demand
+  - Users bet against each other (no house risk)
+  - Fair market discovery through CPMM
+  - Early exit capability for all positions
+  - Slippage protection (large bets get worse prices)
+  - Compatible with Polymarket ecosystem
+
+---
+
 ## Summary
 
 **Critical for Launch (Do First):**
@@ -178,7 +225,7 @@
 
 **Improve UX (Do Next):**
 4. Skipped Markets Time Window
-5. Continuous Prefetching per Category
+5. Continuous Prefetching per Category ✅
 
 **Optimize Later:**
 6. Database Separation ✅ (COMPLETE)
@@ -188,3 +235,6 @@
 **Already Complete:**
 9. Input Sanitization ✅
 10. Frictionless Leaderboards ✅
+
+**Major Features Added:**
+11. AMM (Automated Market Maker) ✅ (COMPLETE)
